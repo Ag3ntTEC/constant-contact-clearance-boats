@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #17202a;
+  --color-harbor: #1f6f8b;
+  --color-signal: #f2b84b;
+  --color-foam: #f7fbfc;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f7fbfc;
+  color: #17202a;
+}
+
+* {
+  box-sizing: border-box;
+}
