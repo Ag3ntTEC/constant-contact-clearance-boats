@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Boat, CampaignSettings, EmailAssets } from "@/lib/types";
+import {
+  clearSavedCampaignSettings,
+  hasSavedCampaignSettings,
+  loadSavedCampaignSettings,
+  saveCampaignSettings,
+} from "@/lib/saved-settings";
 
-const storageKey = "constant-contact-clearance-boats:draft";
+export const storageKey = "constant-contact-clearance-boats:draft";
 
 export const minimumBoats = 7;
 export const maximumBoats = 10;
@@ -20,11 +26,15 @@ export const defaultEmailAssets: EmailAssets = {
   newInventoryUrl: "https://winnisquammarine.com/new-inventory/",
   preOwnedInventoryUrl: "https://winnisquammarine.com/pre-owned-inventory/",
   clearanceDealsUrl: "https://winnisquammarine.com/clearance/",
+  topButtonPaddingTop: 12,
+  topButtonPaddingBottom: 12,
   contactUrl: "https://winnisquammarine.com/contact/",
   footerHeading: "Visit Your Boating Team",
   footerBusinessName: "Winnisquam Marine",
   footerSubtext: "Call/Text 603-524-8380",
   contactButtonLabel: "Contact",
+  clearanceHeadingText: "CLEARANCE",
+  priceLabelText: "Clearance Price",
 };
 
 export const defaultCampaignSettings: CampaignSettings = {
@@ -38,36 +48,55 @@ export const defaultCampaignSettings: CampaignSettings = {
 };
 
 type StoredDraft = {
-  settings: CampaignSettings;
   selectedBoats: Boat[];
 };
+
+type StoredDraftSnapshot = {
+  settings?: Partial<CampaignSettings> & {
+    assets?: Partial<EmailAssets>;
+  };
+  selectedBoats?: Boat[];
+};
+
+function mergeCampaignSettings(
+  defaults: CampaignSettings,
+  saved: StoredDraftSnapshot["settings"]
+): CampaignSettings {
+  return {
+    ...defaults,
+    ...(saved ?? {}),
+    assets: {
+      ...defaults.assets,
+      ...(saved?.assets ?? {}),
+    },
+  };
+}
 
 export function useCampaignDraft() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [settings, setSettings] = useState<CampaignSettings>(defaultCampaignSettings);
+  const [settingsStatus, setSettingsStatus] = useState("Settings saved automatically");
   const [selectedBoats, setSelectedBoats] = useState<Boat[]>([]);
 
   useEffect(() => {
+    const hadSavedSettings = hasSavedCampaignSettings();
+    let nextSettings = loadSavedCampaignSettings(defaultCampaignSettings);
     const stored = window.localStorage.getItem(storageKey);
 
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as Partial<StoredDraft>;
-        const parsedSettings = parsed.settings ?? {};
-        setSettings({
-          ...defaultCampaignSettings,
-          ...parsedSettings,
-          assets: {
-            ...defaultEmailAssets,
-            ...(parsedSettings.assets ?? {}),
-          },
-        });
+        const parsed = JSON.parse(stored) as StoredDraftSnapshot;
+        if (!hadSavedSettings && parsed.settings) {
+          nextSettings = mergeCampaignSettings(defaultCampaignSettings, parsed.settings);
+        }
         setSelectedBoats(parsed.selectedBoats ?? []);
       } catch {
         window.localStorage.removeItem(storageKey);
       }
     }
 
+    setSettings(nextSettings);
+    setSettingsStatus(hadSavedSettings ? "Loaded saved settings" : "Settings saved automatically");
     setIsHydrated(true);
   }, []);
 
@@ -77,12 +106,20 @@ export function useCampaignDraft() {
     }
 
     const stored: StoredDraft = {
-      settings,
       selectedBoats,
     };
 
     window.localStorage.setItem(storageKey, JSON.stringify(stored));
-  }, [isHydrated, selectedBoats, settings]);
+  }, [isHydrated, selectedBoats]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    saveCampaignSettings(settings);
+    setSettingsStatus("Settings saved automatically");
+  }, [isHydrated, settings]);
 
   const selectedBoatIds = useMemo(
     () => new Set(selectedBoats.map((boat) => boat.id)),
@@ -158,18 +195,57 @@ export function useCampaignDraft() {
     window.localStorage.removeItem(storageKey);
   }
 
+  function resetSavedSettings() {
+    const confirmed = window.confirm(
+      "Reset saved settings? This keeps your selected boats, but restores the campaign/template settings to defaults."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearSavedCampaignSettings();
+    setSettings(defaultCampaignSettings);
+    setSettingsStatus("Settings reset to defaults");
+  }
+
+  function clearSelectedBoats() {
+    setSelectedBoats([]);
+
+    const stored = window.localStorage.getItem(storageKey);
+
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as StoredDraftSnapshot;
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          selectedBoats: [],
+        })
+      );
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+  }
+
   return {
     canCreateCampaign,
+    clearSelectedBoats,
     isHydrated,
     maximumBoats,
     minimumBoats,
     resetDraft,
+    resetSavedSettings,
     removeBoat,
     moveBoat,
     selectedBoatIds,
     selectedBoats,
     selectionMessage,
     settings,
+    settingsStatus,
     toggleBoat,
     updateAsset,
     updateSetting,

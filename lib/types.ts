@@ -51,11 +51,15 @@ export type EmailAssets = {
   newInventoryUrl: string;
   preOwnedInventoryUrl: string;
   clearanceDealsUrl: string;
+  topButtonPaddingTop: number;
+  topButtonPaddingBottom: number;
   contactUrl: string;
   footerHeading: string;
   footerBusinessName: string;
   footerSubtext: string;
   contactButtonLabel: string;
+  clearanceHeadingText: string;
+  priceLabelText: string;
 };
 
 export type SelectedBoat = {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { StepShell } from "../_components/StepShell";
 import { TextField } from "../_components/FormControls";
 import { NextStepLink } from "../_components/NextStepLink";
@@ -13,7 +14,8 @@ type ImportedImageField =
   | "footerImageDataUrl";
 
 export default function CampaignEditorPage() {
-  const { selectedBoats, settings, updateAsset } = useCampaignDraft();
+  const { resetSavedSettings, selectedBoats, settings, settingsStatus, updateAsset } =
+    useCampaignDraft();
 
   function handleUpload(field: ImportedImageField, file?: File) {
     if (!file) {
@@ -31,19 +33,39 @@ export default function CampaignEditorPage() {
 
   return (
     <StepShell
-      description="Add the reference-style campaign images, buttons, links, and footer content."
+      description="Add the reference-style campaign images, button links, and layout spacing."
       selectedCount={selectedBoats.length}
       title="Edit campaign assets"
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <section className="space-y-6 rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="space-y-6">
+          <SettingsCard
+            description="Your public image URLs and link settings are saved automatically."
+            title="Saved Settings"
+          >
+            <div className="flex flex-col gap-3 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+            <span>{settingsStatus}</span>
+            <button
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-red-300 hover:text-red-700"
+              onClick={resetSavedSettings}
+              type="button"
+            >
+              Reset saved settings
+            </button>
+            </div>
+          </SettingsCard>
+
+          <SettingsCard
+            description="Imported files are saved for this browser preview. Use public URLs before creating the Constant Contact draft."
+            title="Image Assets"
+          >
           <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             Uploaded images must be hosted at a public URL before sending through Constant Contact.
             Imported files are saved for the app preview, while public URL fields are used when the
             campaign is ready to send.
           </div>
 
-          <div className="grid gap-5">
+          <div className="mt-5 grid gap-5">
             <ImageAssetField
               importedPreviewUrl={settings.assets.topBannerImageDataUrl}
               label="Top banner image"
@@ -77,8 +99,13 @@ export default function CampaignEditorPage() {
               value={settings.assets.footerImageUrl}
             />
           </div>
+          </SettingsCard>
 
-          <div className="grid gap-5 md:grid-cols-2">
+          <SettingsCard
+            description="These control where the email buttons send customers."
+            title="Button Links"
+          >
+          <div className="grid gap-5">
             <TextField
               label="New Inventory button URL"
               onChange={(value) => updateAsset("newInventoryUrl", value)}
@@ -103,31 +130,30 @@ export default function CampaignEditorPage() {
               placeholder="https://winnisquammarine.com/contact/"
               value={settings.assets.contactUrl}
             />
-            <TextField
-              label="Footer heading"
-              onChange={(value) => updateAsset("footerHeading", value)}
-              placeholder="Visit Your Boating Team"
-              value={settings.assets.footerHeading}
+          </div>
+          </SettingsCard>
+
+          <SettingsCard
+            description="Adjust the spacing around the top row of email buttons."
+            title="Top Button Spacing"
+          >
+          <div className="grid gap-5 md:grid-cols-2">
+            <NumberField
+              label="Top buttons space above"
+              max={60}
+              min={0}
+              onChange={(value) => updateAsset("topButtonPaddingTop", value)}
+              value={settings.assets.topButtonPaddingTop}
             />
-            <TextField
-              label="Footer business/name text"
-              onChange={(value) => updateAsset("footerBusinessName", value)}
-              placeholder="Winnisquam Marine"
-              value={settings.assets.footerBusinessName}
-            />
-            <TextField
-              label="Footer subtext"
-              onChange={(value) => updateAsset("footerSubtext", value)}
-              placeholder="Call/Text 603-524-8380"
-              value={settings.assets.footerSubtext}
-            />
-            <TextField
-              label="Contact button label"
-              onChange={(value) => updateAsset("contactButtonLabel", value)}
-              placeholder="Contact"
-              value={settings.assets.contactButtonLabel}
+            <NumberField
+              label="Top buttons space below"
+              max={60}
+              min={0}
+              onChange={(value) => updateAsset("topButtonPaddingBottom", value)}
+              value={settings.assets.topButtonPaddingBottom}
             />
           </div>
+          </SettingsCard>
 
           <NextStepLink href="/campaign/new/preview" label="Continue to preview" />
         </section>
@@ -160,6 +186,54 @@ export default function CampaignEditorPage() {
         </aside>
       </div>
     </StepShell>
+  );
+}
+
+function SettingsCard({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  max,
+  min,
+  onChange,
+  value,
+}: {
+  label: string;
+  max: number;
+  min: number;
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <input
+        className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+        max={max}
+        min={min}
+        onChange={(event) => onChange(Number(event.target.value))}
+        type="number"
+        value={value}
+      />
+    </label>
   );
 }
 

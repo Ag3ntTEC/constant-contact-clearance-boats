@@ -258,9 +258,9 @@ function normalizeBoat(fields: FieldMap, index: number): Boat | null {
     return null;
   }
 
-  const year = parseNumber(
-    pick(fields, ["year", "modelyear", "boatyear", "inventoryyear"])
-  );
+  const year =
+    parseNumber(pick(fields, ["year", "modelyear", "boatyear", "inventoryyear"])) ??
+    undefined;
   const make = pick(fields, ["make", "manufacturer", "brand", "builder"]);
   const model = pick(fields, ["model", "modelname", "boatmodel"]);
   const generatedTitle = [year, make, model].filter(Boolean).join(" ");

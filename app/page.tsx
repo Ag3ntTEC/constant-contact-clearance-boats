@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { LogoutButton } from "./_components/LogoutButton";
+import { StartNewCampaignButton } from "./_components/StartNewCampaignButton";
 
 export default function Dashboard() {
   return (
     <main className="min-h-screen bg-foam">
       <section className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-12">
+        <div className="mb-8 flex justify-end">
+          <LogoutButton />
+        </div>
         <p className="text-sm font-semibold uppercase tracking-wide text-harbor">
           Internal campaign tool
         </p>
@@ -15,12 +20,7 @@ export default function Dashboard() {
           settings, boat selection, copy editing, and final preview.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            className="rounded-md bg-harbor px-5 py-3 text-sm font-semibold text-white hover:bg-[#15566d]"
-            href="/campaign/new/settings"
-          >
-            Start new campaign
-          </Link>
+          <StartNewCampaignButton />
           <Link
             className="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:border-harbor hover:text-harbor"
             href="/campaign/new/boats"

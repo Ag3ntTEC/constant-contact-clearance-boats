@@ -2,12 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
+import { TextField } from "../_components/FormControls";
 import { StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
 
 export default function CampaignPreviewPage() {
-  const { canCreateCampaign, selectedBoats, selectionMessage, settings } =
-    useCampaignDraft();
+  const {
+    canCreateCampaign,
+    selectedBoats,
+    selectionMessage,
+    settings,
+    settingsStatus,
+    updateAsset,
+  } = useCampaignDraft();
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -145,6 +152,54 @@ export default function CampaignPreviewPage() {
         </div>
       ) : null}
 
+      <section className="mb-6 rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold text-ink">Final Text Edits</h2>
+          <p className="text-sm text-slate-500">
+            Edits here update the final email preview and are saved automatically.
+          </p>
+          <p className="text-xs font-semibold text-harbor">{settingsStatus}</p>
+        </div>
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Clearance heading text"
+            onChange={(value) => updateAsset("clearanceHeadingText", value)}
+            placeholder="CLEARANCE"
+            value={settings.assets.clearanceHeadingText}
+          />
+          <TextField
+            label="Price label text"
+            onChange={(value) => updateAsset("priceLabelText", value)}
+            placeholder="Clearance Price"
+            value={settings.assets.priceLabelText}
+          />
+          <TextField
+            label="Footer heading"
+            onChange={(value) => updateAsset("footerHeading", value)}
+            placeholder="Visit Your Boating Team"
+            value={settings.assets.footerHeading}
+          />
+          <TextField
+            label="Footer business name"
+            onChange={(value) => updateAsset("footerBusinessName", value)}
+            placeholder="Winnisquam Marine"
+            value={settings.assets.footerBusinessName}
+          />
+          <TextField
+            label="Footer subtext"
+            onChange={(value) => updateAsset("footerSubtext", value)}
+            placeholder="Call/Text 603-524-8380"
+            value={settings.assets.footerSubtext}
+          />
+          <TextField
+            label="Contact button label"
+            onChange={(value) => updateAsset("contactButtonLabel", value)}
+            placeholder="Contact"
+            value={settings.assets.contactButtonLabel}
+          />
+        </div>
+      </section>
+
       <section>
         <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
           <button
@@ -231,38 +286,88 @@ function containsNonPublicImageReference(html: string) {
 }
 
 function EmailVisualPreview({ html }: { html: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewWidth = 700;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(900);
+  const [containerWidth, setContainerWidth] = useState(previewWidth);
+  const scale = Math.min(1, containerWidth / previewWidth);
+  const wrapperHeight = Math.ceil(height * scale);
+  const previewHtml = useMemo(() => extractEmailBodyHtml(html), [html]);
 
   useEffect(() => {
     setHeight(900);
   }, [html]);
 
-  function resizeIframe() {
-    const iframe = iframeRef.current;
-    const documentElement = iframe?.contentDocument?.documentElement;
-    const body = iframe?.contentDocument?.body;
-    const nextHeight = Math.max(
-      documentElement?.scrollHeight ?? 0,
-      body?.scrollHeight ?? 0,
-      900
-    );
+  useEffect(() => {
+    const container = containerRef.current;
 
-    setHeight(nextHeight);
-  }
+    if (!container) {
+      return;
+    }
+
+    function updateContainerWidth() {
+      setContainerWidth(container?.clientWidth || previewWidth);
+    }
+
+    updateContainerWidth();
+
+    const observer = new ResizeObserver(updateContainerWidth);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+
+    if (!preview) {
+      return;
+    }
+
+    function updateHeight() {
+      setHeight(Math.max(preview?.scrollHeight ?? 0, 900));
+    }
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(preview);
+
+    return () => observer.disconnect();
+  }, [previewHtml]);
 
   return (
-    <div className="w-full bg-slate-100 px-4 py-8">
-      <div className="mx-auto w-[600px] max-w-full bg-white shadow-lg">
-        <iframe
-          className="block w-full border-0 bg-white"
-          onLoad={resizeIframe}
-          ref={iframeRef}
-          srcDoc={html}
-          style={{ height }}
-          title="Generated email preview"
-        />
+    <div className="w-full overflow-x-hidden bg-slate-100 px-4 py-8">
+      <div
+        className="mx-auto w-full max-w-[700px] overflow-hidden"
+        ref={containerRef}
+        style={{ height: wrapperHeight }}
+      >
+        <div
+          className="bg-white shadow-lg"
+          style={{
+            margin: "0 auto",
+            transform: `scale(${scale})`,
+            transformOrigin: "top center",
+            width: previewWidth,
+          }}
+        >
+          <div
+            className="overflow-hidden bg-white"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+            ref={previewRef}
+            style={{ width: previewWidth }}
+          />
+        </div>
       </div>
     </div>
   );
+}
+
+function extractEmailBodyHtml(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const bodyHtml = bodyMatch?.[1] ?? html;
+
+  return bodyHtml.replace("[[trackingImage]]", "");
 }

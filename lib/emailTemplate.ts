@@ -9,9 +9,10 @@ export function generateClearanceBoatEmailHtml(
 ): string {
   const assets = settings.assets;
   const preheader = escapeHtml(settings.preheader ?? "");
+  const clearanceHeading = assets.clearanceHeadingText.trim() || "CLEARANCE";
   const boatRows = selectedBoats
     .slice(0, 10)
-    .map((boat) => renderBoatBlock(boat))
+    .map((boat) => renderBoatBlock(boat, assets.priceLabelText))
     .join("");
 
   return `<!doctype html>
@@ -27,7 +28,7 @@ export function generateClearanceBoatEmailHtml(
     </div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; background-color:#f4f6f8;">
       <tr>
-        <td align="center" style="padding:0 10px 28px 10px;">
+        <td align="center" style="padding:0 0 28px 0;">
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:100%; background-color:#ffffff; border-collapse:collapse;">
             ${renderTopBanner(
               resolveImageSource(assets.topBannerImageUrl, assets.topBannerImageDataUrl),
@@ -37,14 +38,18 @@ export function generateClearanceBoatEmailHtml(
             ${renderButtonRow([
               { label: "New Inventory", href: assets.newInventoryUrl },
               { label: "Pre-Owned Inventory", href: assets.preOwnedInventoryUrl },
-            ])}
+              { label: "Clearance Deals", href: assets.clearanceDealsUrl },
+            ], {
+              paddingTop: assets.topButtonPaddingTop,
+              paddingBottom: assets.topButtonPaddingBottom,
+            })}
             ${renderHero(
               resolveImageSource(assets.heroImageUrl, assets.heroImageDataUrl),
               assets.heroImageWidth
             )}
             <tr>
               <td style="padding:16px 24px 6px 24px;">
-                <p style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">CLEARANCE</p>
+                <p style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
               </td>
             </tr>
             <tr>
@@ -110,7 +115,12 @@ function renderHero(imageUrl: string | undefined, width: number): string {
   </tr>`;
 }
 
-function renderButtonRow(buttons: Array<{ label: string; href: string }>): string {
+function renderButtonRow(
+  buttons: Array<{ label: string; href: string }>,
+  options?: { paddingTop?: number; paddingBottom?: number }
+): string {
+  const paddingTop = clampSpacing(options?.paddingTop);
+  const paddingBottom = clampSpacing(options?.paddingBottom);
   const cells = buttons
     .map(
       (button) => `<td align="center" style="padding:0 6px;">
@@ -120,7 +130,7 @@ function renderButtonRow(buttons: Array<{ label: string; href: string }>): strin
     .join("");
 
   return `<tr>
-    <td align="center" style="padding:12px 12px;">
+    <td align="center" style="padding:${paddingTop}px 12px ${paddingBottom}px 12px;">
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
         <tr>${cells}</tr>
       </table>
@@ -128,13 +138,16 @@ function renderButtonRow(buttons: Array<{ label: string; href: string }>): strin
   </tr>`;
 }
 
-function renderBoatBlock(boat: Boat): string {
+function renderBoatBlock(boat: Boat, priceLabelText: string): string {
   const imageUrl = escapeAttribute(
     boat.primaryImageUrl || boat.imageUrl || previewPlaceholderImage
   );
   const detailUrl = escapeAttribute(boat.webLink || boat.detailUrl || "#");
   const specs = buildSpecsHtml(boat);
   const displayTitle = boat.displayTitle || boat.title;
+  const priceText = boat.priceLabel ?? "Call for price";
+  const pricePrefix = priceLabelText.trim();
+  const formattedPriceLine = pricePrefix ? `${pricePrefix}: ${priceText}` : priceText;
 
   return `<tr>
     <td style="padding:10px 12px;">
@@ -147,7 +160,7 @@ function renderBoatBlock(boat: Boat): string {
           </td>
           <td valign="top" style="padding:12px 12px 12px 4px;">
             <p style="margin:0 0 7px 0; font-size:16px; line-height:21px; color:#111827; font-weight:bold;">${escapeHtml(displayTitle)}</p>
-            <p style="margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;">Clearance Price: ${escapeHtml(boat.priceLabel ?? "Call for price")}</p>
+            <p style="margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;">${escapeHtml(formattedPriceLine)}</p>
             <p style="margin:0 0 8px 0; font-size:12px; line-height:17px; color:#111827; font-weight:bold;">${specs}</p>
             <a href="${detailUrl}" style="font-size:12px; line-height:16px; color:#006eb6; text-decoration:underline; font-weight:bold;">View All Details</a>
           </td>
@@ -226,6 +239,14 @@ function clampImageWidth(value?: number): number {
   }
 
   return Math.min(600, Math.max(180, Math.round(value)));
+}
+
+function clampSpacing(value?: number): number {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return 12;
+  }
+
+  return Math.min(60, Math.max(0, Math.round(value)));
 }
 
 function escapeHtml(value: string): string {

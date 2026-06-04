@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LogoutButton } from "@/app/_components/LogoutButton";
 
 const steps = [
   { href: "/campaign/new/settings", label: "Settings" },
@@ -33,11 +34,14 @@ export function StepShell({
               <h1 className="mt-2 text-3xl font-bold text-ink">{title}</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600">{description}</p>
             </div>
-            {selectedCount !== undefined ? (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                {selectedCount}/10 selected
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedCount !== undefined ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  {selectedCount}/10 selected
+                </div>
+              ) : null}
+              <LogoutButton />
+            </div>
           </div>
           <nav className="flex flex-wrap gap-2">
             {steps.map((step, index) => (

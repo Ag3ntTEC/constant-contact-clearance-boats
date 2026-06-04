@@ -14,6 +14,7 @@ This first setup includes:
 - Multi-step campaign flow for settings, boat selection, copy editing, and final preview
 - Reference-style campaign asset controls for top banner, hero image, inventory buttons, and footer/contact area
 - Constant Contact OAuth routes and draft custom-code campaign creation
+- Password-based staff login with signed HTTP-only cookie protection
 - Placeholder homepage sections for campaign settings, selected boats, email preview, and draft creation
 - Preliminary shared types in `lib/types.ts`
 - Placeholder environment variable documentation
@@ -47,6 +48,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 Copy `.env.local.example` to `.env.local`, then fill in the Constant Contact values.
 
 ```bash
+APP_LOGIN_PASSWORD=change-me
+AUTH_COOKIE_SECRET=generate-a-long-random-secret
 CONSTANT_CONTACT_CLIENT_ID=
 CONSTANT_CONTACT_CLIENT_SECRET=
 CONSTANT_CONTACT_REDIRECT_URI=http://localhost:3000/api/constant-contact/callback
@@ -58,7 +61,9 @@ BOAT_FEED_URL=https://motomarinedigital.com/feeds/winnisquammarine-feed/Winboats
 BOAT_IMAGE_BASE_URL=https://winnisquammarine.com/wp-content/uploads/2026/06
 ```
 
-Keep these values server-side only. Do not expose Constant Contact credentials to frontend code.
+Keep these values server-side only. Do not expose Constant Contact credentials, login passwords, or cookie secrets to frontend code.
+
+`APP_LOGIN_PASSWORD` is the staff password for the `/login` page. `AUTH_COOKIE_SECRET` should be a long random string used to sign the login cookie. For production, set both values in your host's environment variable settings, such as Vercel Project Settings.
 
 ## Constant Contact setup
 
