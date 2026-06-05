@@ -15,21 +15,21 @@ export const minimumBoats = 7;
 export const maximumBoats = 10;
 
 export const defaultEmailAssets: EmailAssets = {
-  topBannerImageUrl: "",
-  topBannerImageDataUrl: "",
+  topBannerImageUrl: "https://i.imgur.com/yYpcgaF.png",
+  topBannerImageDataUrl: "https://i.imgur.com/yYpcgaF.png",
   topBannerImageWidth: 520,
-  heroImageUrl: "",
-  heroImageDataUrl: "",
+  heroImageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
+  heroImageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   heroImageWidth: 520,
-  footerImageUrl: "",
-  footerImageDataUrl: "",
-  newInventoryUrl: "https://winnisquammarine.com/new-inventory/",
-  preOwnedInventoryUrl: "https://winnisquammarine.com/pre-owned-inventory/",
-  clearanceDealsUrl: "https://winnisquammarine.com/clearance/",
-  topButtonPaddingTop: 12,
-  topButtonPaddingBottom: 12,
-  contactUrl: "https://winnisquammarine.com/contact/",
-  footerHeading: "Visit Your Boating Team",
+  footerImageUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
+  footerImageDataUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
+  newInventoryUrl: "https://winnisquammarine.com/all/boats-for-sale/",
+  preOwnedInventoryUrl: "https://winnisquammarine.com/all/boats-for-sale/pre-owned/",
+  clearanceDealsUrl: "https://winnisquammarine.com/all/boats-for-sale/clearance-boats/",
+  topButtonPaddingTop: 24,
+  topButtonPaddingBottom: 24,
+  contactUrl: "https://winnisquammarine.com/schedule-an-appointment/",
+  footerHeading: "Meet Your Boating Team",
   footerBusinessName: "Winnisquam Marine",
   footerSubtext: "Call/Text 603-524-8380",
   contactButtonLabel: "Contact",
@@ -38,7 +38,7 @@ export const defaultEmailAssets: EmailAssets = {
 };
 
 export const defaultCampaignSettings: CampaignSettings = {
-  name: "Clearance Boat Event",
+  name: "June Boat Deals 2026",
   subject: "Clearance boats ready for the water",
   preheader: "Browse hand-picked clearance boats available now.",
   fromName: "Winnisquam Marine",
