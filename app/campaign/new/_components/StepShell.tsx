@@ -37,7 +37,7 @@ export function StepShell({
             <div className="flex flex-wrap items-center gap-2">
               {selectedCount !== undefined ? (
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                  {selectedCount}/10 selected
+                  {selectedCount} selected
                 </div>
               ) : null}
               <LogoutButton />

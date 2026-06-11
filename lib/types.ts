@@ -46,6 +46,7 @@ export type EmailAssets = {
   heroImageUrl: string;
   heroImageDataUrl?: string;
   heroImageWidth: number;
+  headerSections: HeaderSection[];
   footerImageUrl: string;
   footerImageDataUrl?: string;
   newInventoryUrl: string;
@@ -60,6 +61,14 @@ export type EmailAssets = {
   contactButtonLabel: string;
   clearanceHeadingText: string;
   priceLabelText: string;
+};
+
+export type HeaderSection = {
+  id: string;
+  imageUrl: string;
+  imageDataUrl?: string;
+  imageWidth: number;
+  text: string;
 };
 
 export type SelectedBoat = {

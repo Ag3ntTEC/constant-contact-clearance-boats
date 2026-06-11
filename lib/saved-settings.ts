@@ -43,6 +43,13 @@ export function saveCampaignSettings(settings: CampaignSettings) {
   delete publicAssets.topBannerImageDataUrl;
   delete publicAssets.heroImageDataUrl;
   delete publicAssets.footerImageDataUrl;
+  publicAssets.headerSections = publicAssets.headerSections?.map((section) => {
+    const publicSection = { ...section };
+
+    delete publicSection.imageDataUrl;
+
+    return publicSection;
+  });
 
   window.localStorage.setItem(
     SETTINGS_STORAGE_KEY,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Boat, CampaignSettings, EmailAssets } from "@/lib/types";
+import type { Boat, CampaignSettings, EmailAssets, HeaderSection } from "@/lib/types";
 import {
   clearSavedCampaignSettings,
   hasSavedCampaignSettings,
@@ -11,8 +11,16 @@ import {
 
 export const storageKey = "constant-contact-clearance-boats:draft";
 
-export const minimumBoats = 7;
-export const maximumBoats = 10;
+export const createHeaderSection = (
+  overrides: Partial<HeaderSection> = {}
+): HeaderSection => ({
+  id: `header-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
+  imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
+  imageWidth: 520,
+  text: "",
+  ...overrides,
+});
 
 export const defaultEmailAssets: EmailAssets = {
   topBannerImageUrl: "https://i.imgur.com/yYpcgaF.png",
@@ -21,6 +29,15 @@ export const defaultEmailAssets: EmailAssets = {
   heroImageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   heroImageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   heroImageWidth: 520,
+  headerSections: [
+    {
+      id: "default-hero",
+      imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
+      imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
+      imageWidth: 520,
+      text: "",
+    },
+  ],
   footerImageUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   footerImageDataUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   newInventoryUrl: "https://winnisquammarine.com/all/boats-for-sale/",
@@ -62,12 +79,26 @@ function mergeCampaignSettings(
   defaults: CampaignSettings,
   saved: StoredDraftSnapshot["settings"]
 ): CampaignSettings {
+  const savedAssets: Partial<EmailAssets> = saved?.assets ?? {};
+  const headerSections =
+    savedAssets.headerSections && savedAssets.headerSections.length
+      ? savedAssets.headerSections
+      : [
+          createHeaderSection({
+            id: "default-hero",
+            imageUrl: savedAssets.heroImageUrl ?? defaults.assets.heroImageUrl,
+            imageDataUrl: savedAssets.heroImageDataUrl ?? defaults.assets.heroImageDataUrl,
+            imageWidth: savedAssets.heroImageWidth ?? defaults.assets.heroImageWidth,
+          }),
+        ];
+
   return {
     ...defaults,
     ...(saved ?? {}),
     assets: {
       ...defaults.assets,
-      ...(saved?.assets ?? {}),
+      ...savedAssets,
+      headerSections,
     },
   };
 }
@@ -125,14 +156,10 @@ export function useCampaignDraft() {
     () => new Set(selectedBoats.map((boat) => boat.id)),
     [selectedBoats]
   );
-  const canCreateCampaign =
-    selectedBoats.length >= minimumBoats && selectedBoats.length <= maximumBoats;
-  const selectionMessage =
-    selectedBoats.length < minimumBoats
-      ? `Select ${minimumBoats - selectedBoats.length} more boats.`
-      : selectedBoats.length > maximumBoats
-        ? `Remove ${selectedBoats.length - maximumBoats} boats.`
-        : "Selection is ready.";
+  const canCreateCampaign = selectedBoats.length > 0;
+  const selectionMessage = selectedBoats.length
+    ? `${selectedBoats.length} boat${selectedBoats.length === 1 ? "" : "s"} selected.`
+    : "Select at least one boat.";
 
   function updateSetting<K extends keyof CampaignSettings>(
     field: K,
@@ -154,14 +181,49 @@ export function useCampaignDraft() {
     }));
   }
 
+  function addHeaderSection() {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        headerSections: [...current.assets.headerSections, createHeaderSection()],
+      },
+    }));
+  }
+
+  function removeHeaderSection(sectionId: string) {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        headerSections:
+          current.assets.headerSections.length > 1
+            ? current.assets.headerSections.filter((section) => section.id !== sectionId)
+            : current.assets.headerSections,
+      },
+    }));
+  }
+
+  function updateHeaderSection<K extends keyof HeaderSection>(
+    sectionId: string,
+    field: K,
+    value: HeaderSection[K]
+  ) {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        headerSections: current.assets.headerSections.map((section) =>
+          section.id === sectionId ? { ...section, [field]: value } : section
+        ),
+      },
+    }));
+  }
+
   function toggleBoat(boat: Boat) {
     setSelectedBoats((current) => {
       if (current.some((selected) => selected.id === boat.id)) {
         return current.filter((selected) => selected.id !== boat.id);
-      }
-
-      if (current.length >= maximumBoats) {
-        return current;
       }
 
       return [...current, boat];
@@ -234,11 +296,11 @@ export function useCampaignDraft() {
   return {
     canCreateCampaign,
     clearSelectedBoats,
+    addHeaderSection,
     isHydrated,
-    maximumBoats,
-    minimumBoats,
     resetDraft,
     resetSavedSettings,
+    removeHeaderSection,
     removeBoat,
     moveBoat,
     selectedBoatIds,
@@ -248,6 +310,7 @@ export function useCampaignDraft() {
     settingsStatus,
     toggleBoat,
     updateAsset,
+    updateHeaderSection,
     updateSetting,
   };
 }

@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { TextField } from "../_components/FormControls";
+import { TextArea, TextField } from "../_components/FormControls";
 import { StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
+import type { EmailAssets } from "@/lib/types";
 
 export default function CampaignPreviewPage() {
   const {
     canCreateCampaign,
+    addHeaderSection,
+    removeHeaderSection,
     selectedBoats,
     selectionMessage,
     settings,
     settingsStatus,
     updateAsset,
+    updateHeaderSection,
   } = useCampaignDraft();
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
@@ -37,6 +41,27 @@ export default function CampaignPreviewPage() {
   );
   const canCreateDraft =
     hasRefreshToken && canCreateCampaign && !validationMessage && !isCreatingDraft;
+
+  function handleInlineTextEdit(field: string, value: string) {
+    if (field.startsWith("headerSections.")) {
+      const [, sectionId, sectionField] = field.split(".");
+
+      if (sectionId && sectionField === "text") {
+        updateHeaderSection(sectionId, "text", value);
+      }
+
+      return;
+    }
+
+    if (field === "priceLabelText") {
+      updateAsset("priceLabelText", value.split(":")[0]?.trim() || value.trim());
+      return;
+    }
+
+    if (isEditableAssetField(field)) {
+      updateAsset(field, value);
+    }
+  }
 
   useEffect(() => {
     async function loadStatus() {
@@ -161,6 +186,38 @@ export default function CampaignPreviewPage() {
           <p className="text-xs font-semibold text-harbor">{settingsStatus}</p>
         </div>
         <div className="mt-5 grid gap-5 md:grid-cols-2">
+          {settings.assets.headerSections.map((section, index) => (
+            <div className="md:col-span-2" key={section.id}>
+              <div className="mb-3 flex flex-col gap-3 rounded-md border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
+                  <p className="mt-1 text-sm text-slate-500">Add or remove header image/text sections.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                    onClick={addHeaderSection}
+                    type="button"
+                  >
+                    +
+                  </button>
+                  <button
+                    className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
+                    disabled={settings.assets.headerSections.length === 1}
+                    onClick={() => removeHeaderSection(section.id)}
+                    type="button"
+                  >
+                    -
+                  </button>
+                </div>
+              </div>
+              <TextArea
+                label="Optional text below image"
+                onChange={(value) => updateHeaderSection(section.id, "text", value)}
+                value={section.text}
+              />
+            </div>
+          ))}
           <TextField
             label="Clearance heading text"
             onChange={(value) => updateAsset("clearanceHeadingText", value)}
@@ -227,7 +284,7 @@ export default function CampaignPreviewPage() {
         </div>
 
         {activeTab === "visual" ? (
-          <EmailVisualPreview html={emailHtml} />
+          <EmailVisualPreview html={emailHtml} onInlineTextEdit={handleInlineTextEdit} />
         ) : (
           <pre className="max-h-[720px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-4 text-xs leading-5 text-slate-100">
             {emailHtml}
@@ -243,8 +300,8 @@ function getDraftValidationMessage(
   selectedBoatCount: number,
   html: string
 ) {
-  if (selectedBoatCount < 7 || selectedBoatCount > 10) {
-    return "Select between 7 and 10 boats before creating a draft.";
+  if (selectedBoatCount < 1) {
+    return "Select at least one boat before creating a draft.";
   }
 
   if (!settings.name.trim()) {
@@ -270,6 +327,23 @@ function getDraftValidationMessage(
   return null;
 }
 
+function isEditableAssetField(field: string): field is keyof Pick<
+  EmailAssets,
+  | "clearanceHeadingText"
+  | "footerHeading"
+  | "footerBusinessName"
+  | "footerSubtext"
+  | "contactButtonLabel"
+> {
+  return [
+    "clearanceHeadingText",
+    "footerHeading",
+    "footerBusinessName",
+    "footerSubtext",
+    "contactButtonLabel",
+  ].includes(field);
+}
+
 function containsNonPublicImageReference(html: string) {
   const imageSources = Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)).map(
     (match) => match[1].trim().toLowerCase()
@@ -285,7 +359,13 @@ function containsNonPublicImageReference(html: string) {
   );
 }
 
-function EmailVisualPreview({ html }: { html: string }) {
+function EmailVisualPreview({
+  html,
+  onInlineTextEdit,
+}: {
+  html: string;
+  onInlineTextEdit: (field: string, value: string) => void;
+}) {
   const previewWidth = 700;
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -293,7 +373,7 @@ function EmailVisualPreview({ html }: { html: string }) {
   const [containerWidth, setContainerWidth] = useState(previewWidth);
   const scale = Math.min(1, containerWidth / previewWidth);
   const wrapperHeight = Math.ceil(height * scale);
-  const previewHtml = useMemo(() => extractEmailBodyHtml(html), [html]);
+  const previewHtml = useMemo(() => makePreviewHtmlEditable(extractEmailBodyHtml(html)), [html]);
 
   useEffect(() => {
     setHeight(900);
@@ -356,12 +436,36 @@ function EmailVisualPreview({ html }: { html: string }) {
           <div
             className="overflow-hidden bg-white"
             dangerouslySetInnerHTML={{ __html: previewHtml }}
+            onBlurCapture={(event) => {
+              const target = event.target as HTMLElement;
+              const field = target.dataset.editField;
+
+              if (!field) {
+                return;
+              }
+
+              onInlineTextEdit(field, target.textContent ?? "");
+            }}
+            onClickCapture={(event) => {
+              const target = event.target as HTMLElement;
+
+              if (target.dataset.editField) {
+                event.preventDefault();
+              }
+            }}
             ref={previewRef}
             style={{ width: previewWidth }}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+function makePreviewHtmlEditable(html: string): string {
+  return html.replace(
+    /data-edit-field="([^"]+)" style="([^"]*)"/g,
+    'data-edit-field="$1" contenteditable="true" spellcheck="true" title="Click to edit" style="$2 outline:1px dashed rgba(0,110,182,0.35); outline-offset:2px; min-height:18px; cursor:text;"'
   );
 }
 

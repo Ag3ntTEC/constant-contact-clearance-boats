@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { StepShell } from "../_components/StepShell";
 import { NextStepLink } from "../_components/NextStepLink";
-import {
-  maximumBoats,
-  minimumBoats,
-  useCampaignDraft,
-} from "../_components/useCampaignDraft";
+import { useCampaignDraft } from "../_components/useCampaignDraft";
 import type { Boat } from "@/lib/types";
 
 type BoatsResponse = {
@@ -122,8 +118,7 @@ export default function BoatSelectionPage() {
     selectedBoats[0] ??
     visibleBoats[0] ??
     null;
-  const canContinue =
-    selectedBoats.length >= minimumBoats && selectedBoats.length <= maximumBoats;
+  const canContinue = selectedBoats.length > 0;
 
   function handleToggle(boat: Boat) {
     toggleBoat(boat);
@@ -132,7 +127,7 @@ export default function BoatSelectionPage() {
 
   return (
     <StepShell
-      description="Search the feed and select between 7 and 10 boats for the campaign."
+      description="Search the feed and select the boats for the campaign."
       selectedCount={selectedBoats.length}
       title="Select boats"
     >
@@ -140,7 +135,7 @@ export default function BoatSelectionPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-ink">
-              Selected {selectedBoats.length} of {maximumBoats}
+              Selected {selectedBoats.length}
             </p>
             <p
               className={`mt-1 text-sm ${
@@ -214,7 +209,6 @@ export default function BoatSelectionPage() {
                     <BoatRow
                       boat={boat}
                       isSelected={selectedBoatIds.has(boat.id)}
-                      isSelectionFull={selectedBoats.length >= maximumBoats}
                       key={boat.id}
                       onFocus={() => setActiveBoatId(boat.id)}
                       onToggle={() => handleToggle(boat)}
@@ -361,18 +355,14 @@ function RangeFields({
 function BoatRow({
   boat,
   isSelected,
-  isSelectionFull,
   onFocus,
   onToggle,
 }: {
   boat: Boat;
   isSelected: boolean;
-  isSelectionFull: boolean;
   onFocus: () => void;
   onToggle: () => void;
 }) {
-  const checkboxDisabled = !isSelected && isSelectionFull;
-
   return (
     <label
       className={`block cursor-pointer px-3 py-3 hover:bg-slate-50 ${
@@ -385,7 +375,6 @@ function BoatRow({
           <input
             checked={isSelected}
             className="h-4 w-4 rounded border-slate-300 text-harbor focus:ring-harbor"
-            disabled={checkboxDisabled}
             onChange={onToggle}
             type="checkbox"
           />
@@ -401,7 +390,7 @@ function BoatRow({
         <Cell>{boat.formattedLoa ?? "N/A"}</Cell>
         <Cell>{boat.formattedBeam ?? "N/A"}</Cell>
         <Cell>{boat.engineDisplay ?? "N/A"}</Cell>
-        <Cell>{isSelected ? "Selected" : checkboxDisabled ? "Limit met" : "Not selected"}</Cell>
+        <Cell>{isSelected ? "Selected" : "Not selected"}</Cell>
       </div>
     </label>
   );

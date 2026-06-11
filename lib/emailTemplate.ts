@@ -1,4 +1,4 @@
-import type { Boat, CampaignSettings } from "./types";
+import type { Boat, CampaignSettings, HeaderSection } from "./types";
 
 const previewPlaceholderImage =
   "https://winnisquammarine.com/wp-content/uploads/2026/06/2023-Crownline-E275_-_Arch_-_Grill_-_BLOWOUT-ID04343571_1.jpg";
@@ -11,9 +11,19 @@ export function generateClearanceBoatEmailHtml(
   const preheader = escapeHtml(settings.preheader ?? "");
   const clearanceHeading = assets.clearanceHeadingText.trim() || "CLEARANCE";
   const boatRows = selectedBoats
-    .slice(0, 10)
     .map((boat) => renderBoatBlock(boat, assets.priceLabelText))
     .join("");
+  const headerSections = assets.headerSections?.length
+    ? assets.headerSections
+    : [
+        {
+          id: "default-hero",
+          imageUrl: assets.heroImageUrl,
+          imageDataUrl: assets.heroImageDataUrl,
+          imageWidth: assets.heroImageWidth,
+          text: "",
+        },
+      ];
 
   return `<!doctype html>
 <html>
@@ -43,13 +53,10 @@ export function generateClearanceBoatEmailHtml(
               paddingTop: assets.topButtonPaddingTop,
               paddingBottom: assets.topButtonPaddingBottom,
             })}
-            ${renderHero(
-              resolveImageSource(assets.heroImageUrl, assets.heroImageDataUrl),
-              assets.heroImageWidth
-            )}
+            ${headerSections.map(renderHeaderSection).join("")}
             <tr>
               <td style="padding:16px 24px 6px 24px;">
-                <p style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
+                <p data-edit-field="clearanceHeadingText" style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
               </td>
             </tr>
             <tr>
@@ -94,9 +101,21 @@ function renderTopBanner(imageUrl: string | undefined, width: number, title: str
   </tr>`;
 }
 
-function renderHero(imageUrl: string | undefined, width: number): string {
-  const src = normalizeImageSource(imageUrl);
-  const imageWidth = clampImageWidth(width);
+function renderHeaderSection(section: HeaderSection): string {
+  const src = normalizeImageSource(resolveImageSource(section.imageUrl, section.imageDataUrl));
+  const imageWidth = clampImageWidth(section.imageWidth);
+  const text = section.text.trim();
+  const textRow = text
+    ? `<tr>
+      <td align="center" style="padding:8px 28px 16px 28px;">
+        <p data-edit-field="headerSections.${escapeAttribute(section.id)}.text" style="margin:0; color:#111827; font-size:15px; line-height:22px;">${escapeHtml(text)}</p>
+      </td>
+    </tr>`
+    : `<tr>
+      <td align="center" style="padding:4px 28px 12px 28px;">
+        <p data-edit-field="headerSections.${escapeAttribute(section.id)}.text" style="margin:0; color:#64748b; font-size:13px; line-height:19px;"></p>
+      </td>
+    </tr>`;
 
   if (!src) {
     return `<tr>
@@ -105,14 +124,14 @@ function renderHero(imageUrl: string | undefined, width: number): string {
         <p style="margin:0; color:#e5486d; font-size:34px; line-height:38px; font-weight:bold;">CLEARANCE DEALS</p>
         <p style="margin:10px 0 0 0; color:#ffffff; font-size:17px; line-height:22px; font-weight:bold;">DO NOT MISS THE BOAT!</p>
       </td>
-    </tr>`;
+    </tr>${textRow}`;
   }
 
   return `<tr>
     <td align="center" style="padding:0 0 6px 0;">
       <img src="${escapeAttribute(src)}" width="${imageWidth}" alt="Checkout our clearance deals" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
     </td>
-  </tr>`;
+  </tr>${textRow}`;
 }
 
 function renderButtonRow(
@@ -160,7 +179,7 @@ function renderBoatBlock(boat: Boat, priceLabelText: string): string {
           </td>
           <td valign="top" style="padding:12px 12px 12px 4px;">
             <p style="margin:0 0 7px 0; font-size:16px; line-height:21px; color:#111827; font-weight:bold;">${escapeHtml(displayTitle)}</p>
-            <p style="margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;">${escapeHtml(formattedPriceLine)}</p>
+            <p data-edit-field="priceLabelText" style="margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;">${escapeHtml(formattedPriceLine)}</p>
             <p style="margin:0 0 8px 0; font-size:12px; line-height:17px; color:#111827; font-weight:bold;">${specs}</p>
             <a href="${detailUrl}" style="font-size:12px; line-height:16px; color:#006eb6; text-decoration:underline; font-weight:bold;">View All Details</a>
           </td>
@@ -188,10 +207,10 @@ function renderFooter(settings: CampaignSettings): string {
             }
           </td>
           <td align="center" valign="middle" style="padding:0; color:#111827;">
-            <p style="margin:0 0 6px 0; font-size:13px; line-height:18px;">${escapeHtml(assets.footerHeading)}</p>
-            <p style="margin:0 0 4px 0; font-size:16px; line-height:21px; font-weight:bold;">${escapeHtml(assets.footerBusinessName)}</p>
-            <p style="margin:0 0 10px 0; font-size:12px; line-height:17px;">${escapeHtml(assets.footerSubtext)}</p>
-            <a href="${escapeAttribute(assets.contactUrl)}" style="display:inline-block; border:1px solid #111827; padding:5px 15px; color:#111827; font-size:11px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(assets.contactButtonLabel)}</a>
+            <p data-edit-field="footerHeading" style="margin:0 0 6px 0; font-size:13px; line-height:18px;">${escapeHtml(assets.footerHeading)}</p>
+            <p data-edit-field="footerBusinessName" style="margin:0 0 4px 0; font-size:16px; line-height:21px; font-weight:bold;">${escapeHtml(assets.footerBusinessName)}</p>
+            <p data-edit-field="footerSubtext" style="margin:0 0 10px 0; font-size:12px; line-height:17px;">${escapeHtml(assets.footerSubtext)}</p>
+            <a data-edit-field="contactButtonLabel" href="${escapeAttribute(assets.contactUrl)}" style="display:inline-block; border:1px solid #111827; padding:5px 15px; color:#111827; font-size:11px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(assets.contactButtonLabel)}</a>
           </td>
         </tr>
       </table>

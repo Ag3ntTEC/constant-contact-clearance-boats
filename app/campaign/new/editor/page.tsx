@@ -3,19 +3,26 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StepShell } from "../_components/StepShell";
-import { TextField } from "../_components/FormControls";
+import { TextArea, TextField } from "../_components/FormControls";
 import { NextStepLink } from "../_components/NextStepLink";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { EmailAssets } from "@/lib/types";
+import type { EmailAssets, HeaderSection } from "@/lib/types";
 
 type ImportedImageField =
   | "topBannerImageDataUrl"
-  | "heroImageDataUrl"
   | "footerImageDataUrl";
 
 export default function CampaignEditorPage() {
-  const { resetSavedSettings, selectedBoats, settings, settingsStatus, updateAsset } =
-    useCampaignDraft();
+  const {
+    addHeaderSection,
+    removeHeaderSection,
+    resetSavedSettings,
+    selectedBoats,
+    settings,
+    settingsStatus,
+    updateAsset,
+    updateHeaderSection,
+  } = useCampaignDraft();
 
   function handleUpload(field: ImportedImageField, file?: File) {
     if (!file) {
@@ -78,17 +85,6 @@ export default function CampaignEditorPage() {
               width={settings.assets.topBannerImageWidth}
             />
             <ImageAssetField
-              importedPreviewUrl={settings.assets.heroImageDataUrl}
-              label="Hero/header image"
-              onChange={(value) => updateAsset("heroImageUrl", value)}
-              onClearImport={() => updateAsset("heroImageDataUrl", "")}
-              onWidthChange={(value) => updateAsset("heroImageWidth", value)}
-              onUpload={(file) => handleUpload("heroImageDataUrl", file)}
-              placeholder="https://example.com/clearance-hero.jpg"
-              value={settings.assets.heroImageUrl}
-              width={settings.assets.heroImageWidth}
-            />
-            <ImageAssetField
               importedPreviewUrl={settings.assets.footerImageDataUrl}
               label="Footer image"
               onChange={(value) => updateAsset("footerImageUrl", value)}
@@ -99,6 +95,18 @@ export default function CampaignEditorPage() {
               value={settings.assets.footerImageUrl}
             />
           </div>
+          </SettingsCard>
+
+          <SettingsCard
+            description="Add or remove header image sections. Each section can include optional text under the image."
+            title="Header Sections"
+          >
+            <HeaderSectionsEditor
+              addHeaderSection={addHeaderSection}
+              removeHeaderSection={removeHeaderSection}
+              sections={settings.assets.headerSections}
+              updateHeaderSection={updateHeaderSection}
+            />
           </SettingsCard>
 
           <SettingsCard
@@ -186,6 +194,97 @@ export default function CampaignEditorPage() {
         </aside>
       </div>
     </StepShell>
+  );
+}
+
+function HeaderSectionsEditor({
+  addHeaderSection,
+  removeHeaderSection,
+  sections,
+  updateHeaderSection,
+}: {
+  addHeaderSection: () => void;
+  removeHeaderSection: (sectionId: string) => void;
+  sections: HeaderSection[];
+  updateHeaderSection: <K extends keyof HeaderSection>(
+    sectionId: string,
+    field: K,
+    value: HeaderSection[K]
+  ) => void;
+}) {
+  function handleSectionUpload(sectionId: string, file?: File) {
+    if (!file) {
+      updateHeaderSection(sectionId, "imageDataUrl", "");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      updateHeaderSection(sectionId, "imageDataUrl", String(reader.result));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white"
+          onClick={addHeaderSection}
+          type="button"
+        >
+          + Add section
+        </button>
+      </div>
+
+      {sections.map((section, index) => {
+        return (
+          <div className="rounded-md border border-slate-200 p-4" key={section.id}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
+              <div className="flex gap-2">
+                <button
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  onClick={addHeaderSection}
+                  type="button"
+                >
+                  +
+                </button>
+                <button
+                  className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
+                  disabled={sections.length === 1}
+                  onClick={() => removeHeaderSection(section.id)}
+                  type="button"
+                >
+                  -
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              <ImageAssetField
+                importedPreviewUrl={section.imageDataUrl}
+                label="Section image"
+                onChange={(value) => updateHeaderSection(section.id, "imageUrl", value)}
+                onClearImport={() => updateHeaderSection(section.id, "imageDataUrl", "")}
+                onWidthChange={(value) => updateHeaderSection(section.id, "imageWidth", value)}
+                onUpload={(file) => handleSectionUpload(section.id, file)}
+                placeholder="https://example.com/header-section.jpg"
+                value={section.imageUrl}
+                width={section.imageWidth}
+              />
+
+              <TextArea
+                label="Optional text below image"
+                onChange={(value) => updateHeaderSection(section.id, "text", value)}
+                value={section.text}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
