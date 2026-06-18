@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Boat, CampaignSettings, EmailAssets, HeaderSection } from "@/lib/types";
+import type {
+  Boat,
+  CampaignSettings,
+  EmailAssets,
+  FeaturedListingSettings,
+  HeaderSection,
+} from "@/lib/types";
 import {
   clearSavedCampaignSettings,
   hasSavedCampaignSettings,
@@ -38,6 +44,21 @@ export const defaultEmailAssets: EmailAssets = {
       text: "",
     },
   ],
+  featuredListing: {
+    enabled: false,
+    boatId: "",
+    headline: "We've Found A Boat\nThat's Perfect For You!",
+    label: "Featured Listing",
+    imageUrl: "",
+    imageDataUrl: "",
+    imageWidth: 570,
+    title: "",
+    body: "Power, luxury, and comfort come together effortlessly in this featured boat. Its wide-open deck plan offers abundant cockpit and bow seating, along with a thoughtfully arranged helm station.",
+    specs: "",
+    fullListingUrl: "",
+    budgetBoatsUrl: "https://winnisquammarine.com/all/boats-for-sale/",
+    scheduleViewingUrl: "https://winnisquammarine.com/schedule-an-appointment/",
+  },
   footerImageUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   footerImageDataUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   newInventoryUrl: "https://winnisquammarine.com/all/boats-for-sale/",
@@ -68,9 +89,13 @@ type StoredDraft = {
   selectedBoats: Boat[];
 };
 
+type StoredDraftAssets = Partial<Omit<EmailAssets, "featuredListing">> & {
+  featuredListing?: Partial<FeaturedListingSettings>;
+};
+
 type StoredDraftSnapshot = {
   settings?: Partial<CampaignSettings> & {
-    assets?: Partial<EmailAssets>;
+    assets?: StoredDraftAssets;
   };
   selectedBoats?: Boat[];
 };
@@ -79,7 +104,7 @@ function mergeCampaignSettings(
   defaults: CampaignSettings,
   saved: StoredDraftSnapshot["settings"]
 ): CampaignSettings {
-  const savedAssets: Partial<EmailAssets> = saved?.assets ?? {};
+  const savedAssets: StoredDraftAssets = saved?.assets ?? {};
   const headerSections =
     savedAssets.headerSections && savedAssets.headerSections.length
       ? savedAssets.headerSections
@@ -98,6 +123,10 @@ function mergeCampaignSettings(
     assets: {
       ...defaults.assets,
       ...savedAssets,
+      featuredListing: {
+        ...defaults.assets.featuredListing,
+        ...(savedAssets.featuredListing ?? {}),
+      },
       headerSections,
     },
   };
@@ -220,6 +249,22 @@ export function useCampaignDraft() {
     }));
   }
 
+  function updateFeaturedListing<K extends keyof FeaturedListingSettings>(
+    field: K,
+    value: FeaturedListingSettings[K]
+  ) {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        featuredListing: {
+          ...current.assets.featuredListing,
+          [field]: value,
+        },
+      },
+    }));
+  }
+
   function toggleBoat(boat: Boat) {
     setSelectedBoats((current) => {
       if (current.some((selected) => selected.id === boat.id)) {
@@ -310,6 +355,7 @@ export function useCampaignDraft() {
     settingsStatus,
     toggleBoat,
     updateAsset,
+    updateFeaturedListing,
     updateHeaderSection,
     updateSetting,
   };

@@ -1,4 +1,4 @@
-import type { Boat, CampaignSettings, HeaderSection } from "./types";
+import type { Boat, CampaignSettings, FeaturedListingSettings, HeaderSection } from "./types";
 
 const previewPlaceholderImage =
   "https://winnisquammarine.com/wp-content/uploads/2026/06/2023-Crownline-E275_-_Arch_-_Grill_-_BLOWOUT-ID04343571_1.jpg";
@@ -45,15 +45,23 @@ export function generateClearanceBoatEmailHtml(
               assets.topBannerImageWidth,
               settings.name
             )}
-            ${renderButtonRow([
-              { label: "New Inventory", href: assets.newInventoryUrl },
-              { label: "Pre-Owned Inventory", href: assets.preOwnedInventoryUrl },
-              { label: "Clearance Deals", href: assets.clearanceDealsUrl },
-            ], {
-              paddingTop: assets.topButtonPaddingTop,
-              paddingBottom: assets.topButtonPaddingBottom,
-            })}
-            ${headerSections.map(renderHeaderSection).join("")}
+            ${
+              assets.featuredListing.enabled
+                ? ""
+                : renderButtonRow([
+                    { label: "New Inventory", href: assets.newInventoryUrl },
+                    { label: "Pre-Owned Inventory", href: assets.preOwnedInventoryUrl },
+                    { label: "Clearance Deals", href: assets.clearanceDealsUrl },
+                  ], {
+                    paddingTop: assets.topButtonPaddingTop,
+                    paddingBottom: assets.topButtonPaddingBottom,
+                  })
+            }
+            ${
+              assets.featuredListing.enabled
+                ? renderFeaturedListing(settings, selectedBoats)
+                : headerSections.map(renderHeaderSection).join("")
+            }
             <tr>
               <td style="padding:16px 24px 6px 24px;">
                 <p data-edit-field="clearanceHeadingText" style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
@@ -132,6 +140,114 @@ function renderHeaderSection(section: HeaderSection): string {
       <img src="${escapeAttribute(src)}" width="${imageWidth}" alt="Checkout our clearance deals" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
     </td>
   </tr>${textRow}`;
+}
+
+function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]): string {
+  const featured = resolveFeaturedListing(settings.assets.featuredListing, selectedBoats, settings);
+
+  if (!featured.enabled) {
+    return "";
+  }
+
+  const imageSrc = normalizeImageSource(featured.imageUrl) || previewPlaceholderImage;
+  const imageWidth = clampImageWidth(featured.imageWidth, 570);
+
+  return `<tr>
+    <td style="padding:8px 15px 20px 15px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:0 0 0 0;">
+            <p data-edit-field="featuredListing.headline" style="margin:0; color:#000000; font-size:30px; line-height:34px; font-weight:bold;">${formatEditableText(featured.headline)}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="border-top:1px solid #cfcfcf; padding:13px 0 18px 0;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+              <tr>
+                <td width="36" valign="middle" style="width:36px; color:#ff3bb3; font-size:22px; line-height:24px;">&#128150;</td>
+                <td valign="middle" style="color:#111827; font-size:14px; line-height:20px;">
+                  <span data-edit-field="featuredListing.label" style="outline:none;">${escapeHtml(featured.label)}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:0 0 24px 0;">
+            <img src="${escapeAttribute(imageSrc)}" width="${imageWidth}" alt="${escapeAttribute(featured.title)}" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 15px 0;">
+            <p data-edit-field="featuredListing.title" style="margin:0 0 4px 0; color:#000000; font-size:16px; line-height:21px; font-weight:bold;">${escapeHtml(featured.title)}</p>
+            <p data-edit-field="featuredListing.body" style="margin:0; color:#000000; font-size:12px; line-height:16px;">${formatEditableText(featured.body)}</p>
+            <p data-edit-field="featuredListing.specs" style="margin:3px 0 0 0; color:#000000; font-size:12px; line-height:16px; font-weight:bold;">${formatEditableText(featured.specs)}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 16px 0 16px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+              <tr>
+                <td align="left" style="padding:0 4px;">
+                  <a href="${escapeAttribute(featured.fullListingUrl)}" style="display:inline-block; border:1px solid #000000; border-radius:2px; padding:10px 18px; color:#000000; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">See Full Listing</a>
+                </td>
+                <td align="center" style="padding:0 4px;">
+                  <a href="${escapeAttribute(featured.budgetBoatsUrl)}" style="display:inline-block; border:1px solid #000000; border-radius:2px; padding:10px 18px; color:#000000; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">Shop Boats for Every Budget</a>
+                </td>
+                <td align="right" style="padding:0 4px;">
+                  <a href="${escapeAttribute(featured.scheduleViewingUrl)}" style="display:inline-block; border:1px solid #000000; border-radius:2px; padding:10px 18px; color:#d71f2a; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">Schedule Viewing</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>`;
+}
+
+function resolveFeaturedListing(
+  listing: FeaturedListingSettings,
+  selectedBoats: Boat[],
+  settings: CampaignSettings
+) {
+  const selectedBoat =
+    selectedBoats.find((boat) => boat.id === listing.boatId) ?? selectedBoats[0] ?? null;
+  const boatImage = selectedBoat?.primaryImageUrl || selectedBoat?.imageUrl;
+  const boatTitle = selectedBoat?.displayTitle || selectedBoat?.title;
+  const customImage = resolveImageSource(listing.imageUrl, listing.imageDataUrl);
+
+  return {
+    enabled: listing.enabled,
+    headline: listing.headline.trim() || "We've Found A Boat\nThat's Perfect For You!",
+    label: listing.label.trim() || "Featured Listing",
+    imageUrl: customImage || boatImage,
+    imageWidth: listing.imageWidth || 570,
+    title: listing.title.trim() || boatTitle || "Featured Listing",
+    body: listing.body.trim(),
+    specs: listing.specs.trim() || (selectedBoat ? buildFeaturedSpecsText(selectedBoat) : ""),
+    fullListingUrl:
+      listing.fullListingUrl.trim() || selectedBoat?.webLink || selectedBoat?.detailUrl || "#",
+    budgetBoatsUrl: listing.budgetBoatsUrl.trim() || settings.assets.newInventoryUrl || "#",
+    scheduleViewingUrl: listing.scheduleViewingUrl.trim() || settings.assets.contactUrl || "#",
+  };
+}
+
+function buildFeaturedSpecsText(boat: Boat): string {
+  return [
+    boat.formattedLoa ? `LOA ${boat.formattedLoa}` : undefined,
+    boat.formattedBeam ? `Beam ${boat.formattedBeam}` : undefined,
+    boat.engineDisplay ? `Power ${boat.engineDisplay}` : boat.engine,
+  ]
+    .filter(Boolean)
+    .join(" [[bullet]] ");
+}
+
+function formatEditableText(value: string): string {
+  return escapeHtml(value)
+    .replace(/\s\[\[bullet\]\]\s/g, " &bull; ")
+    .replace(/\s\|\s/g, " &bull; ")
+    .replace(/\r?\n/g, "<br />");
 }
 
 function renderButtonRow(
@@ -252,9 +368,9 @@ function normalizeOptionalUrl(value?: string): string | undefined {
   return trimmed;
 }
 
-function clampImageWidth(value?: number): number {
+function clampImageWidth(value?: number, fallback = 520): number {
   if (!value || !Number.isFinite(value)) {
-    return 520;
+    return fallback;
   }
 
   return Math.min(600, Math.max(180, Math.round(value)));

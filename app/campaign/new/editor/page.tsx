@@ -6,7 +6,7 @@ import { StepShell } from "../_components/StepShell";
 import { TextArea, TextField } from "../_components/FormControls";
 import { NextStepLink } from "../_components/NextStepLink";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { EmailAssets, HeaderSection } from "@/lib/types";
+import type { Boat, EmailAssets, FeaturedListingSettings, HeaderSection } from "@/lib/types";
 
 type ImportedImageField =
   | "topBannerImageDataUrl"
@@ -21,6 +21,7 @@ export default function CampaignEditorPage() {
     settings,
     settingsStatus,
     updateAsset,
+    updateFeaturedListing,
     updateHeaderSection,
   } = useCampaignDraft();
 
@@ -98,15 +99,29 @@ export default function CampaignEditorPage() {
           </SettingsCard>
 
           <SettingsCard
-            description="Add or remove header image sections. Each section can include optional text under the image."
-            title="Header Sections"
+            description="Choose whether the email opens with the default image header or a featured listing."
+            title="Header Format"
           >
-            <HeaderSectionsEditor
-              addHeaderSection={addHeaderSection}
-              removeHeaderSection={removeHeaderSection}
-              sections={settings.assets.headerSections}
-              updateHeaderSection={updateHeaderSection}
+            <HeaderFormatControl
+              isFeatured={settings.assets.featuredListing.enabled}
+              onChange={(isFeatured) => updateFeaturedListing("enabled", isFeatured)}
             />
+            <div className="mt-5">
+              {settings.assets.featuredListing.enabled ? (
+                <FeaturedListingEditor
+                  listing={settings.assets.featuredListing}
+                  selectedBoats={selectedBoats}
+                  updateFeaturedListing={updateFeaturedListing}
+                />
+              ) : (
+                <HeaderSectionsEditor
+                  addHeaderSection={addHeaderSection}
+                  removeHeaderSection={removeHeaderSection}
+                  sections={settings.assets.headerSections}
+                  updateHeaderSection={updateHeaderSection}
+                />
+              )}
+            </div>
           </SettingsCard>
 
           <SettingsCard
@@ -195,6 +210,185 @@ export default function CampaignEditorPage() {
       </div>
     </StepShell>
   );
+}
+
+function HeaderFormatControl({
+  isFeatured,
+  onChange,
+}: {
+  isFeatured: boolean;
+  onChange: (isFeatured: boolean) => void;
+}) {
+  return (
+    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-1 md:grid-cols-2">
+      <button
+        className={`rounded-md px-4 py-3 text-sm font-semibold ${
+          !isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
+        }`}
+        onClick={() => onChange(false)}
+        type="button"
+      >
+        Default header
+      </button>
+      <button
+        className={`rounded-md px-4 py-3 text-sm font-semibold ${
+          isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
+        }`}
+        onClick={() => onChange(true)}
+        type="button"
+      >
+        Featured listing
+      </button>
+    </div>
+  );
+}
+
+function FeaturedListingEditor({
+  listing,
+  selectedBoats,
+  updateFeaturedListing,
+}: {
+  listing: FeaturedListingSettings;
+  selectedBoats: Boat[];
+  updateFeaturedListing: <K extends keyof FeaturedListingSettings>(
+    field: K,
+    value: FeaturedListingSettings[K]
+  ) => void;
+}) {
+  function handleBoatChange(boatId: string) {
+    updateFeaturedListing("boatId", boatId);
+
+    const boat = selectedBoats.find((selectedBoat) => selectedBoat.id === boatId);
+
+    if (!boat) {
+      return;
+    }
+
+    if (!listing.imageUrl) {
+      updateFeaturedListing("imageUrl", boat.primaryImageUrl || boat.imageUrl || "");
+    }
+
+    if (!listing.title) {
+      updateFeaturedListing("title", boat.displayTitle || boat.title);
+    }
+
+    if (!listing.specs) {
+      updateFeaturedListing("specs", buildFeaturedSpecs(boat));
+    }
+
+    if (!listing.fullListingUrl) {
+      updateFeaturedListing("fullListingUrl", boat.webLink || boat.detailUrl || "");
+    }
+  }
+
+  function handleFeaturedUpload(file?: File) {
+    if (!file) {
+      updateFeaturedListing("imageDataUrl", "");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      updateFeaturedListing("imageDataUrl", String(reader.result));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="grid gap-5">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Featured boat</span>
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+              onChange={(event) => handleBoatChange(event.target.value)}
+              value={listing.boatId}
+            >
+              <option value="">Use first selected boat or custom listing</option>
+              {selectedBoats.map((boat) => (
+                <option key={boat.id} value={boat.id}>
+                  {boat.displayTitle ?? boat.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <TextField
+            label="Featured label"
+            onChange={(value) => updateFeaturedListing("label", value)}
+            placeholder="Featured Listing"
+            value={listing.label}
+          />
+
+          <TextArea
+            label="Featured headline"
+            onChange={(value) => updateFeaturedListing("headline", value)}
+            value={listing.headline}
+          />
+
+          <ImageAssetField
+            importedPreviewUrl={listing.imageDataUrl}
+            label="Featured image"
+            onChange={(value) => updateFeaturedListing("imageUrl", value)}
+            onClearImport={() => updateFeaturedListing("imageDataUrl", "")}
+            onWidthChange={(value) => updateFeaturedListing("imageWidth", value)}
+            onUpload={handleFeaturedUpload}
+            placeholder="https://example.com/featured-boat.jpg"
+            value={listing.imageUrl}
+            width={listing.imageWidth}
+          />
+
+          <TextField
+            label="Featured title"
+            onChange={(value) => updateFeaturedListing("title", value)}
+            placeholder="The Monterey 385 Super Sport..."
+            value={listing.title}
+          />
+
+          <TextArea
+            label="Featured description"
+            onChange={(value) => updateFeaturedListing("body", value)}
+            value={listing.body}
+          />
+
+          <TextArea
+            label="Featured specs"
+            onChange={(value) => updateFeaturedListing("specs", value)}
+            value={listing.specs}
+          />
+
+          <div className="grid gap-5 md:grid-cols-3">
+            <TextField
+              label="See Full Listing button URL"
+              onChange={(value) => updateFeaturedListing("fullListingUrl", value)}
+              placeholder="https://winnisquammarine.com/listing/"
+              value={listing.fullListingUrl}
+            />
+            <TextField
+              label="Shop Boats for Every Budget button URL"
+              onChange={(value) => updateFeaturedListing("budgetBoatsUrl", value)}
+              placeholder="https://winnisquammarine.com/all/boats-for-sale/"
+              value={listing.budgetBoatsUrl}
+            />
+            <TextField
+              label="Schedule Viewing button URL"
+              onChange={(value) => updateFeaturedListing("scheduleViewingUrl", value)}
+              placeholder="https://winnisquammarine.com/schedule-an-appointment/"
+              value={listing.scheduleViewingUrl}
+            />
+          </div>
+    </div>
+  );
+}
+
+function buildFeaturedSpecs(boat: Boat) {
+  return [
+    boat.formattedLoa ? `LOA ${boat.formattedLoa}` : undefined,
+    boat.formattedBeam ? `Beam ${boat.formattedBeam}` : undefined,
+    boat.engineDisplay ? `Power ${boat.engineDisplay}` : boat.engine,
+  ]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 function HeaderSectionsEditor({

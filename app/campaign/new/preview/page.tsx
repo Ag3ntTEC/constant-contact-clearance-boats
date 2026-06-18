@@ -5,7 +5,7 @@ import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
 import { TextArea, TextField } from "../_components/FormControls";
 import { StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { EmailAssets } from "@/lib/types";
+import type { EmailAssets, FeaturedListingSettings } from "@/lib/types";
 
 export default function CampaignPreviewPage() {
   const {
@@ -17,6 +17,7 @@ export default function CampaignPreviewPage() {
     settings,
     settingsStatus,
     updateAsset,
+    updateFeaturedListing,
     updateHeaderSection,
   } = useCampaignDraft();
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
@@ -48,6 +49,16 @@ export default function CampaignPreviewPage() {
 
       if (sectionId && sectionField === "text") {
         updateHeaderSection(sectionId, "text", value);
+      }
+
+      return;
+    }
+
+    if (field.startsWith("featuredListing.")) {
+      const featuredField = field.replace("featuredListing.", "");
+
+      if (isEditableFeaturedListingField(featuredField)) {
+        updateFeaturedListing(featuredField, value);
       }
 
       return;
@@ -186,38 +197,85 @@ export default function CampaignPreviewPage() {
           <p className="text-xs font-semibold text-harbor">{settingsStatus}</p>
         </div>
         <div className="mt-5 grid gap-5 md:grid-cols-2">
-          {settings.assets.headerSections.map((section, index) => (
-            <div className="md:col-span-2" key={section.id}>
-              <div className="mb-3 flex flex-col gap-3 rounded-md border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
-                  <p className="mt-1 text-sm text-slate-500">Add or remove header image/text sections.</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                    onClick={addHeaderSection}
-                    type="button"
-                  >
-                    +
-                  </button>
-                  <button
-                    className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
-                    disabled={settings.assets.headerSections.length === 1}
-                    onClick={() => removeHeaderSection(section.id)}
-                    type="button"
-                  >
-                    -
-                  </button>
-                </div>
-              </div>
-              <TextArea
-                label="Optional text below image"
-                onChange={(value) => updateHeaderSection(section.id, "text", value)}
-                value={section.text}
+          <div className="md:col-span-2">
+            <HeaderFormatControl
+              isFeatured={settings.assets.featuredListing.enabled}
+              onChange={(isFeatured) => updateFeaturedListing("enabled", isFeatured)}
+            />
+          </div>
+
+          {settings.assets.featuredListing.enabled ? (
+            <div className="grid gap-5 md:col-span-2 md:grid-cols-3">
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Featured boat</span>
+                <select
+                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+                  onChange={(event) => updateFeaturedListing("boatId", event.target.value)}
+                  value={settings.assets.featuredListing.boatId}
+                >
+                  <option value="">Use first selected boat or custom listing</option>
+                  {selectedBoats.map((boat) => (
+                    <option key={boat.id} value={boat.id}>
+                      {boat.displayTitle ?? boat.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <TextField
+                label="See Full Listing button URL"
+                onChange={(value) => updateFeaturedListing("fullListingUrl", value)}
+                placeholder="https://winnisquammarine.com/listing/"
+                value={settings.assets.featuredListing.fullListingUrl}
+              />
+              <TextField
+                label="Shop Boats for Every Budget button URL"
+                onChange={(value) => updateFeaturedListing("budgetBoatsUrl", value)}
+                placeholder="https://winnisquammarine.com/all/boats-for-sale/"
+                value={settings.assets.featuredListing.budgetBoatsUrl}
+              />
+              <TextField
+                label="Schedule Viewing button URL"
+                onChange={(value) => updateFeaturedListing("scheduleViewingUrl", value)}
+                placeholder="https://winnisquammarine.com/schedule-an-appointment/"
+                value={settings.assets.featuredListing.scheduleViewingUrl}
               />
             </div>
-          ))}
+          ) : (
+            <>
+              {settings.assets.headerSections.map((section, index) => (
+                <div className="md:col-span-2" key={section.id}>
+                  <div className="mb-3 flex flex-col gap-3 rounded-md border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
+                      <p className="mt-1 text-sm text-slate-500">Add or remove header image/text sections.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                        onClick={addHeaderSection}
+                        type="button"
+                      >
+                        +
+                      </button>
+                      <button
+                        className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
+                        disabled={settings.assets.headerSections.length === 1}
+                        onClick={() => removeHeaderSection(section.id)}
+                        type="button"
+                      >
+                        -
+                      </button>
+                    </div>
+                  </div>
+                  <TextArea
+                    label="Optional text below image"
+                    onChange={(value) => updateHeaderSection(section.id, "text", value)}
+                    value={section.text}
+                  />
+                </div>
+              ))}
+            </>
+          )}
           <TextField
             label="Clearance heading text"
             onChange={(value) => updateAsset("clearanceHeadingText", value)}
@@ -327,6 +385,37 @@ function getDraftValidationMessage(
   return null;
 }
 
+function HeaderFormatControl({
+  isFeatured,
+  onChange,
+}: {
+  isFeatured: boolean;
+  onChange: (isFeatured: boolean) => void;
+}) {
+  return (
+    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-1 md:grid-cols-2">
+      <button
+        className={`rounded-md px-4 py-3 text-sm font-semibold ${
+          !isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
+        }`}
+        onClick={() => onChange(false)}
+        type="button"
+      >
+        Default header
+      </button>
+      <button
+        className={`rounded-md px-4 py-3 text-sm font-semibold ${
+          isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
+        }`}
+        onClick={() => onChange(true)}
+        type="button"
+      >
+        Featured listing
+      </button>
+    </div>
+  );
+}
+
 function isEditableAssetField(field: string): field is keyof Pick<
   EmailAssets,
   | "clearanceHeadingText"
@@ -341,6 +430,23 @@ function isEditableAssetField(field: string): field is keyof Pick<
     "footerBusinessName",
     "footerSubtext",
     "contactButtonLabel",
+  ].includes(field);
+}
+
+function isEditableFeaturedListingField(field: string): field is keyof Pick<
+  FeaturedListingSettings,
+  | "headline"
+  | "label"
+  | "title"
+  | "body"
+  | "specs"
+> {
+  return [
+    "headline",
+    "label",
+    "title",
+    "body",
+    "specs",
   ].includes(field);
 }
 
@@ -464,8 +570,8 @@ function EmailVisualPreview({
 
 function makePreviewHtmlEditable(html: string): string {
   return html.replace(
-    /data-edit-field="([^"]+)" style="([^"]*)"/g,
-    'data-edit-field="$1" contenteditable="true" spellcheck="true" title="Click to edit" style="$2 outline:1px dashed rgba(0,110,182,0.35); outline-offset:2px; min-height:18px; cursor:text;"'
+    /data-edit-field="([^"]+)"([^>]*?)style="([^"]*)"/g,
+    'data-edit-field="$1" contenteditable="true" spellcheck="true" title="Click to edit"$2style="$3 outline:1px dashed rgba(0,110,182,0.35); outline-offset:2px; min-height:18px; cursor:text;"'
   );
 }
 

@@ -1,9 +1,11 @@
-import type { CampaignSettings, EmailAssets } from "./types";
+import type { CampaignSettings, EmailAssets, FeaturedListingSettings } from "./types";
 
 export const SETTINGS_STORAGE_KEY = "clearanceBoatCampaignSettings";
 
 type SavedSettingsSnapshot = Partial<Omit<CampaignSettings, "assets">> & {
-  assets?: Partial<EmailAssets>;
+  assets?: Partial<Omit<EmailAssets, "featuredListing">> & {
+    featuredListing?: Partial<FeaturedListingSettings>;
+  };
 };
 
 export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignSettings {
@@ -26,6 +28,10 @@ export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignS
       assets: {
         ...defaults.assets,
         ...(parsed.assets ?? {}),
+        featuredListing: {
+          ...defaults.assets.featuredListing,
+          ...(parsed.assets?.featuredListing ?? {}),
+        },
       },
     };
   } catch {
@@ -50,6 +56,10 @@ export function saveCampaignSettings(settings: CampaignSettings) {
 
     return publicSection;
   });
+  if (publicAssets.featuredListing) {
+    publicAssets.featuredListing = { ...publicAssets.featuredListing };
+    delete publicAssets.featuredListing.imageDataUrl;
+  }
 
   window.localStorage.setItem(
     SETTINGS_STORAGE_KEY,

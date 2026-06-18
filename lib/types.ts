@@ -47,6 +47,7 @@ export type EmailAssets = {
   heroImageDataUrl?: string;
   heroImageWidth: number;
   headerSections: HeaderSection[];
+  featuredListing: FeaturedListingSettings;
   footerImageUrl: string;
   footerImageDataUrl?: string;
   newInventoryUrl: string;
@@ -69,6 +70,22 @@ export type HeaderSection = {
   imageDataUrl?: string;
   imageWidth: number;
   text: string;
+};
+
+export type FeaturedListingSettings = {
+  enabled: boolean;
+  boatId: string;
+  headline: string;
+  label: string;
+  imageUrl: string;
+  imageDataUrl?: string;
+  imageWidth: number;
+  title: string;
+  body: string;
+  specs: string;
+  fullListingUrl: string;
+  budgetBoatsUrl: string;
+  scheduleViewingUrl: string;
 };
 
 export type SelectedBoat = {
