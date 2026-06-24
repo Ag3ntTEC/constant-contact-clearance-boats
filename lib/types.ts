@@ -80,6 +80,7 @@ export type FeaturedListingSettings = {
   imageUrl: string;
   imageDataUrl?: string;
   imageWidth: number;
+  galleryImageUrls: string[];
   title: string;
   body: string;
   specs: string;

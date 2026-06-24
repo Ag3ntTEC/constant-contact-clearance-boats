@@ -52,6 +52,7 @@ export const defaultEmailAssets: EmailAssets = {
     imageUrl: "",
     imageDataUrl: "",
     imageWidth: 570,
+    galleryImageUrls: [],
     title: "",
     body: "Power, luxury, and comfort come together effortlessly in this featured boat. Its wide-open deck plan offers abundant cockpit and bow seating, along with a thoughtfully arranged helm station.",
     specs: "",

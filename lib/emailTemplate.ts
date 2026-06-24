@@ -184,6 +184,7 @@ function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]
             <img src="${escapeAttribute(imageSrc)}" width="${imageWidth}" alt="${escapeAttribute(featured.title)}" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
           </td>
         </tr>
+        ${renderFeaturedGallery(featured.galleryImageUrls)}
         <tr>
           <td style="padding:0 0 15px 0;">
             <p data-edit-field="featuredListing.title" style="margin:0 0 4px 0; color:#000000; font-size:16px; line-height:21px; font-weight:bold;">${escapeHtml(featured.title)}</p>
@@ -229,6 +230,7 @@ function resolveFeaturedListing(
     label: listing.label.trim() || "Featured Listing",
     imageUrl: customImage || boatImage,
     imageWidth: listing.imageWidth || 570,
+    galleryImageUrls: listing.galleryImageUrls.filter((url) => normalizeOptionalUrl(url)),
     title: listing.title.trim() || boatTitle || "Featured Listing",
     body: listing.body.trim(),
     specs: listing.specs.trim() || (selectedBoat ? buildFeaturedSpecsText(selectedBoat) : ""),
@@ -237,6 +239,38 @@ function resolveFeaturedListing(
     budgetBoatsUrl: listing.budgetBoatsUrl.trim() || settings.assets.newInventoryUrl || "#",
     scheduleViewingUrl: listing.scheduleViewingUrl.trim() || settings.assets.contactUrl || "#",
   };
+}
+
+function renderFeaturedGallery(imageUrls: string[]): string {
+  if (!imageUrls.length) {
+    return "";
+  }
+
+  const rows = [];
+
+  for (let index = 0; index < imageUrls.length; index += 3) {
+    const cells = imageUrls.slice(index, index + 3).map((url) => {
+      const imageUrl = escapeAttribute(url);
+
+      return `<td width="33.333%" align="center" valign="top" style="width:33.333%; padding:0 5px 10px 5px;">
+        <img src="${imageUrl}" width="172" alt="Featured boat gallery image" style="display:block; width:172px; max-width:100%; height:auto; border:0; border-radius:8px;" />
+      </td>`;
+    });
+
+    while (cells.length < 3) {
+      cells.push(`<td width="33.333%" style="width:33.333%; padding:0 5px 10px 5px;">&nbsp;</td>`);
+    }
+
+    rows.push(`<tr>${cells.join("")}</tr>`);
+  }
+
+  return `<tr>
+    <td style="padding:0 10px 14px 10px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+        ${rows.join("")}
+      </table>
+    </td>
+  </tr>`;
 }
 
 function resolveFeaturedBoat(selectedBoats: Boat[], boatId: string): Boat | null {

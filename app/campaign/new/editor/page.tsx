@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { StepShell } from "../_components/StepShell";
 import { TextArea, TextField } from "../_components/FormControls";
 import { NextStepLink } from "../_components/NextStepLink";
@@ -255,8 +255,16 @@ function FeaturedListingEditor({
     value: FeaturedListingSettings[K]
   ) => void;
 }) {
+  const [isGalleryMenuOpen, setIsGalleryMenuOpen] = useState(false);
+  const featuredBoat =
+    selectedBoats.find((selectedBoat) => selectedBoat.id === listing.boatId) ??
+    selectedBoats[0] ??
+    null;
+  const featuredBoatImages = getBoatImageOptions(featuredBoat);
+
   function handleBoatChange(boatId: string) {
     updateFeaturedListing("boatId", boatId);
+    updateFeaturedListing("galleryImageUrls", []);
 
     const boat = selectedBoats.find((selectedBoat) => selectedBoat.id === boatId);
 
@@ -293,6 +301,15 @@ function FeaturedListingEditor({
       updateFeaturedListing("imageDataUrl", String(reader.result));
     };
     reader.readAsDataURL(file);
+  }
+
+  function toggleGalleryImage(imageUrl: string) {
+    updateFeaturedListing(
+      "galleryImageUrls",
+      listing.galleryImageUrls.includes(imageUrl)
+        ? listing.galleryImageUrls.filter((selectedUrl) => selectedUrl !== imageUrl)
+        : [...listing.galleryImageUrls, imageUrl]
+    );
   }
 
   return (
@@ -338,6 +355,85 @@ function FeaturedListingEditor({
             width={listing.imageWidth}
           />
 
+          <div className="rounded-md border border-slate-200 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-ink">Featured boat gallery</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {listing.galleryImageUrls.length} image{listing.galleryImageUrls.length === 1 ? "" : "s"} selected
+                </p>
+              </div>
+              <button
+                className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white"
+                disabled={!featuredBoatImages.length}
+                onClick={() => setIsGalleryMenuOpen((isOpen) => !isOpen)}
+                type="button"
+              >
+                {isGalleryMenuOpen ? "Close image menu" : "Choose gallery images"}
+              </button>
+            </div>
+
+            {!featuredBoatImages.length ? (
+              <p className="mt-3 text-sm text-slate-500">
+                Select a featured boat with pictures to choose gallery images.
+              </p>
+            ) : null}
+
+            {isGalleryMenuOpen ? (
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    onClick={() => updateFeaturedListing("galleryImageUrls", featuredBoatImages)}
+                    type="button"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    onClick={() => updateFeaturedListing("galleryImageUrls", [])}
+                    type="button"
+                  >
+                    Clear all
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {featuredBoatImages.map((imageUrl, index) => {
+                    const isSelected = listing.galleryImageUrls.includes(imageUrl);
+
+                    return (
+                      <label
+                        className={`cursor-pointer rounded-md border bg-white p-2 ${
+                          isSelected ? "border-harbor ring-2 ring-harbor/20" : "border-slate-200"
+                        }`}
+                        key={imageUrl}
+                      >
+                        <input
+                          checked={isSelected}
+                          className="sr-only"
+                          onChange={() => toggleGalleryImage(imageUrl)}
+                          type="checkbox"
+                        />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={`Featured boat option ${index + 1}`}
+                          className="aspect-[4/3] w-full rounded-md bg-slate-100 object-cover"
+                          src={imageUrl}
+                        />
+                        <span className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-700">
+                          Image {index + 1}
+                          <span className={isSelected ? "text-harbor" : "text-slate-400"}>
+                            {isSelected ? "Selected" : "Not selected"}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <TextField
             label="Featured title"
             onChange={(value) => updateFeaturedListing("title", value)}
@@ -379,6 +475,16 @@ function FeaturedListingEditor({
           </div>
     </div>
   );
+}
+
+function getBoatImageOptions(boat: Boat | null) {
+  if (!boat) {
+    return [];
+  }
+
+  return Array.from(
+    new Set([boat.primaryImageUrl, boat.imageUrl, ...(boat.pictures ?? [])].filter(Boolean))
+  ) as string[];
 }
 
 function buildFeaturedSpecs(boat: Boat) {
