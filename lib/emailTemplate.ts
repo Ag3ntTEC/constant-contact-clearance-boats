@@ -10,9 +10,27 @@ export function generateClearanceBoatEmailHtml(
   const assets = settings.assets;
   const preheader = escapeHtml(settings.preheader ?? "");
   const clearanceHeading = assets.clearanceHeadingText.trim() || "CLEARANCE";
+  const featuredBoat = assets.featuredListing.enabled
+    ? resolveFeaturedBoat(selectedBoats, assets.featuredListing.boatId)
+    : null;
   const boatRows = selectedBoats
+    .filter((boat) => boat.id !== featuredBoat?.id)
     .map((boat) => renderBoatBlock(boat, assets.priceLabelText))
     .join("");
+  const boatListSection = boatRows
+    ? `<tr>
+              <td style="padding:16px 24px 6px 24px;">
+                <p data-edit-field="clearanceHeadingText" style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 18px 6px 18px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+                  ${boatRows}
+                </table>
+              </td>
+            </tr>`
+    : "";
   const headerSections = assets.headerSections?.length
     ? assets.headerSections
     : [
@@ -62,18 +80,7 @@ export function generateClearanceBoatEmailHtml(
                 ? renderFeaturedListing(settings, selectedBoats)
                 : headerSections.map(renderHeaderSection).join("")
             }
-            <tr>
-              <td style="padding:16px 24px 6px 24px;">
-                <p data-edit-field="clearanceHeadingText" style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${escapeHtml(clearanceHeading)}</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 18px 6px 18px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
-                  ${boatRows}
-                </table>
-              </td>
-            </tr>
+            ${boatListSection}
             ${renderButtonRow([
               { label: "New Inventory", href: assets.newInventoryUrl },
               { label: "Pre-Owned Inventory", href: assets.preOwnedInventoryUrl },
@@ -211,8 +218,7 @@ function resolveFeaturedListing(
   selectedBoats: Boat[],
   settings: CampaignSettings
 ) {
-  const selectedBoat =
-    selectedBoats.find((boat) => boat.id === listing.boatId) ?? selectedBoats[0] ?? null;
+  const selectedBoat = resolveFeaturedBoat(selectedBoats, listing.boatId);
   const boatImage = selectedBoat?.primaryImageUrl || selectedBoat?.imageUrl;
   const boatTitle = selectedBoat?.displayTitle || selectedBoat?.title;
   const customImage = resolveImageSource(listing.imageUrl, listing.imageDataUrl);
@@ -231,6 +237,10 @@ function resolveFeaturedListing(
     budgetBoatsUrl: listing.budgetBoatsUrl.trim() || settings.assets.newInventoryUrl || "#",
     scheduleViewingUrl: listing.scheduleViewingUrl.trim() || settings.assets.contactUrl || "#",
   };
+}
+
+function resolveFeaturedBoat(selectedBoats: Boat[], boatId: string): Boat | null {
+  return selectedBoats.find((boat) => boat.id === boatId) ?? selectedBoats[0] ?? null;
 }
 
 function buildFeaturedSpecsText(boat: Boat): string {

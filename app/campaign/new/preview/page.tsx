@@ -523,6 +523,41 @@ function EmailVisualPreview({
     return () => observer.disconnect();
   }, [previewHtml]);
 
+  function getEditableTarget(target: EventTarget | null) {
+    return target instanceof HTMLElement
+      ? target.closest<HTMLElement>("[data-edit-field]")
+      : null;
+  }
+
+  function commitEditableTarget(target: HTMLElement) {
+    const field = target.dataset.editField;
+
+    if (!field) {
+      return;
+    }
+
+    onInlineTextEdit(field, target.textContent ?? "");
+  }
+
+  function insertPlainTextAtSelection(target: HTMLElement, text: string) {
+    const selection = window.getSelection();
+
+    if (!selection?.rangeCount) {
+      target.textContent = `${target.textContent ?? ""}${text}`;
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    range.deleteContents();
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
   return (
     <div className="w-full overflow-x-hidden bg-slate-100 px-4 py-8">
       <div
@@ -543,21 +578,41 @@ function EmailVisualPreview({
             className="overflow-hidden bg-white"
             dangerouslySetInnerHTML={{ __html: previewHtml }}
             onBlurCapture={(event) => {
-              const target = event.target as HTMLElement;
-              const field = target.dataset.editField;
+              const target = getEditableTarget(event.target);
 
-              if (!field) {
+              if (!target) {
                 return;
               }
 
-              onInlineTextEdit(field, target.textContent ?? "");
+              commitEditableTarget(target);
             }}
             onClickCapture={(event) => {
-              const target = event.target as HTMLElement;
+              const target = getEditableTarget(event.target);
 
-              if (target.dataset.editField) {
+              if (target) {
                 event.preventDefault();
               }
+            }}
+            onKeyDownCapture={(event) => {
+              const target = getEditableTarget(event.target);
+
+              if (!target || event.key !== "Enter") {
+                return;
+              }
+
+              event.preventDefault();
+              commitEditableTarget(target);
+              target.blur();
+            }}
+            onPasteCapture={(event) => {
+              const target = getEditableTarget(event.target);
+
+              if (!target) {
+                return;
+              }
+
+              event.preventDefault();
+              insertPlainTextAtSelection(target, event.clipboardData.getData("text/plain"));
             }}
             ref={previewRef}
             style={{ width: previewWidth }}
