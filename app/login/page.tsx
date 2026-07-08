@@ -51,12 +51,15 @@ function LoginForm() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-foam px-6 py-12">
-      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-7 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-harbor">
-          Marina staff login
+      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-7 shadow-[var(--surface-shadow)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-harbor text-sm font-bold text-white">
+          WM
+        </div>
+        <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-harbor">
+          Marina Staff Login
         </p>
         <h1 className="mt-3 text-3xl font-bold text-ink">
-          Clearance Boat Campaign Builder
+          Campaign Studio
         </h1>
         <p className="mt-3 text-sm text-slate-600">
           Enter the internal password to access the campaign builder.
@@ -67,7 +70,7 @@ function LoginForm() {
             <span className="text-sm font-medium text-slate-700">Password</span>
             <input
               autoComplete="current-password"
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 text-sm outline-none ring-harbor focus:ring-2"
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-3 text-sm shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4"
               name="password"
               required
               type="password"
@@ -81,7 +84,7 @@ function LoginForm() {
           ) : null}
 
           <button
-            className="w-full rounded-md bg-harbor px-5 py-3 text-sm font-semibold text-white hover:bg-[#15566d] disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="w-full rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-tide disabled:cursor-not-allowed disabled:bg-slate-300"
             disabled={isSubmitting}
             type="submit"
           >

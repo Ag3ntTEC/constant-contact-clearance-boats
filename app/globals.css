@@ -5,18 +5,51 @@
   --color-harbor: #1f6f8b;
   --color-signal: #f2b84b;
   --color-foam: #f7fbfc;
+  --color-mist: #eef6f7;
+  --color-tide: #0f4f63;
+  --color-coral: #c75243;
+  --color-spruce: #176348;
 }
 
 :root {
   color-scheme: light;
+  --surface-shadow: 0 18px 50px rgba(23, 32, 42, 0.08);
+  --tight-shadow: 0 8px 24px rgba(23, 32, 42, 0.08);
 }
 
 body {
   margin: 0;
-  background: #f7fbfc;
+  background:
+    linear-gradient(180deg, rgba(31, 111, 139, 0.08), rgba(247, 251, 252, 0) 340px),
+    #f7fbfc;
   color: #17202a;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 * {
   box-sizing: border-box;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[contenteditable="true"] {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[contenteditable="true"]:focus-visible {
+  outline: 3px solid rgba(31, 111, 139, 0.24);
+  outline-offset: 2px;
 }

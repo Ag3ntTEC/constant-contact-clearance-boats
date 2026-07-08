@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Boat } from "./types";
 import {
   formatBoatDisplayTitle,
@@ -12,6 +14,7 @@ export const BOAT_FEED_URL =
   "https://motomarinedigital.com/feeds/winnisquammarine-feed/WinboatsWebXMLAllRevA.xml";
 
 const DEFAULT_IMAGE_HOST = "https://winnisquammarine.com/wp-content/uploads";
+const FALLBACK_FEED_PATH = join(process.cwd(), "lib", "boat-feed-fallback.xml");
 
 type XmlNode = {
   name: string;
@@ -39,25 +42,54 @@ export async function fetchBoats(): Promise<{
   boats: Boat[];
   fieldNames: string[];
   fetchedAt: string;
+  source: "live" | "fallback";
+  warning?: string;
 }> {
-  const response = await fetch(BOAT_FEED_URL, {
-    headers: {
-      "User-Agent": "constant-contact-clearance-boats/0.1",
-    },
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(BOAT_FEED_URL, {
+      headers: {
+        "User-Agent": "constant-contact-clearance-boats/0.1",
+      },
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
-    throw new Error(`Boat feed returned ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Boat feed returned ${response.status} ${response.statusText}`);
+    }
+
+    const xml = await response.text();
+    const parsed = parseBoatsXml(xml);
+
+    return {
+      ...parsed,
+      fetchedAt: new Date().toISOString(),
+      source: "live",
+    };
+  } catch (error) {
+    return loadFallbackBoats(error);
   }
+}
 
-  const xml = await response.text();
-  const parsed = parseBoatsXml(xml);
+async function loadFallbackBoats(originalError: unknown) {
+  try {
+    const xml = await readFile(FALLBACK_FEED_PATH, "utf8");
+    const parsed = parseBoatsXml(xml);
+    const message =
+      originalError instanceof Error ? originalError.message : "The live boat feed could not be loaded.";
 
-  return {
-    ...parsed,
-    fetchedAt: new Date().toISOString(),
-  };
+    return {
+      ...parsed,
+      fetchedAt: new Date().toISOString(),
+      source: "fallback" as const,
+      warning: `Using cached boat feed because the live feed failed: ${message}`,
+    };
+  } catch {
+    if (originalError instanceof Error) {
+      throw originalError;
+    }
+
+    throw new Error("The boat feed could not be loaded.");
+  }
 }
 
 export function parseBoatsXml(xml: string): {
@@ -420,18 +452,21 @@ function resolveImageUrl(value: string): string {
     return value;
   }
 
-  const imageBaseUrl = process.env.BOAT_IMAGE_BASE_URL ?? getDefaultImageBaseUrl();
+  const imageBaseUrl = getCurrentImageBaseUrl();
   const filename = value.split(/[\\/]/).filter(Boolean).pop() ?? value;
 
   return `${imageBaseUrl}/${encodeURIComponent(filename)}`;
 }
 
-function getDefaultImageBaseUrl(): string {
+function getCurrentImageBaseUrl(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
+  const configuredBaseUrl = (process.env.BOAT_IMAGE_BASE_URL ?? DEFAULT_IMAGE_HOST)
+    .replace(/\/+$/, "")
+    .replace(/\/\d{4}\/(?:0[1-9]|1[0-2])$/, "");
 
-  return `${DEFAULT_IMAGE_HOST}/${year}/${month}`;
+  return `${configuredBaseUrl}/${year}/${month}`;
 }
 
 function compactFields(fields: FieldMap): Record<string, string> {

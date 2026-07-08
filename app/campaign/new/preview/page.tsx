@@ -2,20 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { TextArea, TextField } from "../_components/FormControls";
-import { StepShell } from "../_components/StepShell";
+import { stripRichText } from "@/lib/richText";
+import { ActionFooter, StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
 import type { EmailAssets, FeaturedListingSettings } from "@/lib/types";
 
 export default function CampaignPreviewPage() {
   const {
     canCreateCampaign,
-    addHeaderSection,
-    removeHeaderSection,
     selectedBoats,
     selectionMessage,
     settings,
-    settingsStatus,
     updateAsset,
     updateFeaturedListing,
     updateHeaderSection,
@@ -42,6 +39,51 @@ export default function CampaignPreviewPage() {
   );
   const canCreateDraft =
     hasRefreshToken && canCreateCampaign && !validationMessage && !isCreatingDraft;
+  const readinessItems = [
+    {
+      detail: selectedBoats.length
+        ? `${selectedBoats.length} boat${selectedBoats.length === 1 ? "" : "s"} selected`
+        : "Select at least one boat.",
+      label: "Boat selection",
+      ready: selectedBoats.length > 0,
+    },
+    {
+      detail: settings.name || "Campaign name required.",
+      label: "Campaign name",
+      ready: Boolean(settings.name.trim()),
+    },
+    {
+      detail: settings.subject || "Subject line required.",
+      label: "Subject line",
+      ready: Boolean(settings.subject.trim()),
+    },
+    {
+      detail:
+        settings.fromName?.trim() && settings.fromEmail?.trim() && settings.replyToEmail?.trim()
+          ? settings.fromEmail ?? "Sender ready"
+          : "From name, from email, and reply-to email required.",
+      label: "Sender info",
+      ready: Boolean(
+        settings.fromName?.trim() && settings.fromEmail?.trim() && settings.replyToEmail?.trim()
+      ),
+    },
+    {
+      detail: containsNonPublicImageReference(emailHtml)
+        ? "Replace imported or local images with public URLs."
+        : "Images are public URL ready.",
+      label: "Image URLs",
+      ready: !containsNonPublicImageReference(emailHtml),
+    },
+    {
+      detail: isCheckingStatus
+        ? "Checking connection"
+        : hasRefreshToken
+          ? "Connected"
+          : "Connect before creating the draft.",
+      label: "Constant Contact",
+      ready: hasRefreshToken,
+    },
+  ];
 
   function handleInlineTextEdit(field: string, value: string) {
     if (field.startsWith("headerSections.")) {
@@ -65,7 +107,7 @@ export default function CampaignPreviewPage() {
     }
 
     if (field === "priceLabelText") {
-      updateAsset("priceLabelText", value.split(":")[0]?.trim() || value.trim());
+      updateAsset("priceLabelText", extractPriceLabelEdit(value));
       return;
     }
 
@@ -136,12 +178,30 @@ export default function CampaignPreviewPage() {
   return (
     <StepShell
       description="Review the final table-based email before the future Constant Contact draft step."
+      footer={
+        <ActionFooter
+          backHref="/campaign/new/editor"
+          nextDescription={validationMessage ?? "Ready to create a Constant Contact draft."}
+        >
+          <button
+            className="rounded-md bg-ink px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-tide disabled:cursor-not-allowed disabled:bg-slate-300"
+            disabled={!canCreateDraft}
+            onClick={createDraft}
+            type="button"
+          >
+            {isCreatingDraft ? "Creating Draft..." : "Create Constant Contact Draft"}
+          </button>
+        </ActionFooter>
+      }
       selectedCount={selectedBoats.length}
       title="Preview email"
     >
-      <div className="mb-5 flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+      <div className="mb-5 flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-5 shadow-[var(--tight-shadow)] md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-ink">{selectionMessage}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-harbor">
+            Final Review
+          </p>
+          <p className="mt-2 text-sm font-semibold text-ink">{selectionMessage}</p>
           <p className="mt-1 text-xs text-slate-500">
             Create a draft only after reviewing the generated custom-code HTML.
           </p>
@@ -158,16 +218,10 @@ export default function CampaignPreviewPage() {
               Connect Constant Contact
             </a>
           ) : null}
-          <button
-            className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={!canCreateDraft}
-            onClick={createDraft}
-            type="button"
-          >
-            {isCreatingDraft ? "Creating draft..." : "Create Constant Contact Draft"}
-          </button>
         </div>
       </div>
+
+      <ReadinessChecklist items={readinessItems} />
 
       {draftResult ? (
         <div className="mb-5 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
@@ -188,135 +242,8 @@ export default function CampaignPreviewPage() {
         </div>
       ) : null}
 
-      <section className="mb-6 rounded-md border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold text-ink">Final Text Edits</h2>
-          <p className="text-sm text-slate-500">
-            Edits here update the final email preview and are saved automatically.
-          </p>
-          <p className="text-xs font-semibold text-harbor">{settingsStatus}</p>
-        </div>
-        <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <HeaderFormatControl
-              isFeatured={settings.assets.featuredListing.enabled}
-              onChange={(isFeatured) => updateFeaturedListing("enabled", isFeatured)}
-            />
-          </div>
-
-          {settings.assets.featuredListing.enabled ? (
-            <div className="grid gap-5 md:col-span-2 md:grid-cols-3">
-              <label className="block md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Featured boat</span>
-                <select
-                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
-                  onChange={(event) => updateFeaturedListing("boatId", event.target.value)}
-                  value={settings.assets.featuredListing.boatId}
-                >
-                  <option value="">Use first selected boat or custom listing</option>
-                  {selectedBoats.map((boat) => (
-                    <option key={boat.id} value={boat.id}>
-                      {boat.displayTitle ?? boat.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <TextField
-                label="See Full Listing button URL"
-                onChange={(value) => updateFeaturedListing("fullListingUrl", value)}
-                placeholder="https://winnisquammarine.com/listing/"
-                value={settings.assets.featuredListing.fullListingUrl}
-              />
-              <TextField
-                label="Shop Boats for Every Budget button URL"
-                onChange={(value) => updateFeaturedListing("budgetBoatsUrl", value)}
-                placeholder="https://winnisquammarine.com/all/boats-for-sale/"
-                value={settings.assets.featuredListing.budgetBoatsUrl}
-              />
-              <TextField
-                label="Schedule Viewing button URL"
-                onChange={(value) => updateFeaturedListing("scheduleViewingUrl", value)}
-                placeholder="https://winnisquammarine.com/schedule-an-appointment/"
-                value={settings.assets.featuredListing.scheduleViewingUrl}
-              />
-            </div>
-          ) : (
-            <>
-              {settings.assets.headerSections.map((section, index) => (
-                <div className="md:col-span-2" key={section.id}>
-                  <div className="mb-3 flex flex-col gap-3 rounded-md border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
-                      <p className="mt-1 text-sm text-slate-500">Add or remove header image/text sections.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                        onClick={addHeaderSection}
-                        type="button"
-                      >
-                        +
-                      </button>
-                      <button
-                        className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
-                        disabled={settings.assets.headerSections.length === 1}
-                        onClick={() => removeHeaderSection(section.id)}
-                        type="button"
-                      >
-                        -
-                      </button>
-                    </div>
-                  </div>
-                  <TextArea
-                    label="Optional text below image"
-                    onChange={(value) => updateHeaderSection(section.id, "text", value)}
-                    value={section.text}
-                  />
-                </div>
-              ))}
-            </>
-          )}
-          <TextField
-            label="Clearance heading text"
-            onChange={(value) => updateAsset("clearanceHeadingText", value)}
-            placeholder="CLEARANCE"
-            value={settings.assets.clearanceHeadingText}
-          />
-          <TextField
-            label="Price label text"
-            onChange={(value) => updateAsset("priceLabelText", value)}
-            placeholder="Clearance Price"
-            value={settings.assets.priceLabelText}
-          />
-          <TextField
-            label="Footer heading"
-            onChange={(value) => updateAsset("footerHeading", value)}
-            placeholder="Visit Your Boating Team"
-            value={settings.assets.footerHeading}
-          />
-          <TextField
-            label="Footer business name"
-            onChange={(value) => updateAsset("footerBusinessName", value)}
-            placeholder="Winnisquam Marine"
-            value={settings.assets.footerBusinessName}
-          />
-          <TextField
-            label="Footer subtext"
-            onChange={(value) => updateAsset("footerSubtext", value)}
-            placeholder="Call/Text 603-524-8380"
-            value={settings.assets.footerSubtext}
-          />
-          <TextField
-            label="Contact button label"
-            onChange={(value) => updateAsset("contactButtonLabel", value)}
-            placeholder="Contact"
-            value={settings.assets.contactButtonLabel}
-          />
-        </div>
-      </section>
-
       <section>
-        <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-[var(--tight-shadow)]">
           <button
             className={`rounded-md px-4 py-2 text-sm font-semibold ${
               activeTab === "visual"
@@ -385,34 +312,50 @@ function getDraftValidationMessage(
   return null;
 }
 
-function HeaderFormatControl({
-  isFeatured,
-  onChange,
+function ReadinessChecklist({
+  items,
 }: {
-  isFeatured: boolean;
-  onChange: (isFeatured: boolean) => void;
+  items: { detail: string; label: string; ready: boolean }[];
 }) {
+  const readyCount = items.filter((item) => item.ready).length;
+
   return (
-    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-1 md:grid-cols-2">
-      <button
-        className={`rounded-md px-4 py-3 text-sm font-semibold ${
-          !isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
-        }`}
-        onClick={() => onChange(false)}
-        type="button"
-      >
-        Default header
-      </button>
-      <button
-        className={`rounded-md px-4 py-3 text-sm font-semibold ${
-          isFeatured ? "bg-white text-ink shadow-sm" : "text-slate-600 hover:text-ink"
-        }`}
-        onClick={() => onChange(true)}
-        type="button"
-      >
-        Featured listing
-      </button>
-    </div>
+    <section className="mb-5 rounded-md border border-slate-200 bg-white p-5 shadow-[var(--tight-shadow)]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-ink">Draft Readiness</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {readyCount} of {items.length} checks ready.
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-sm font-bold ${
+            readyCount === items.length
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {readyCount === items.length ? "Ready" : "Needs attention"}
+        </span>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4" key={item.label}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-ink">{item.label}</p>
+              <span
+                className={`rounded-full px-2 py-1 text-xs font-bold ${
+                  item.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {item.ready ? "Ready" : "Needed"}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -448,6 +391,22 @@ function isEditableFeaturedListingField(field: string): field is keyof Pick<
     "body",
     "specs",
   ].includes(field);
+}
+
+function extractPriceLabelEdit(value: string): string {
+  const colonIndex = value.indexOf(":");
+
+  if (colonIndex >= 0) {
+    const labelHtml = value.slice(0, colonIndex).trim();
+
+    if (stripRichText(labelHtml).trim()) {
+      return labelHtml;
+    }
+  }
+
+  const plainValue = stripRichText(value);
+
+  return plainValue.split(":")[0]?.trim() || plainValue.trim();
 }
 
 function containsNonPublicImageReference(html: string) {
@@ -524,9 +483,17 @@ function EmailVisualPreview({
   }, [previewHtml]);
 
   function getEditableTarget(target: EventTarget | null) {
-    return target instanceof HTMLElement
-      ? target.closest<HTMLElement>("[data-edit-field]")
-      : null;
+    return target instanceof Node ? getEditableNodeTarget(target) : null;
+  }
+
+  function getEditableNodeTarget(node: Node | null) {
+    if (!node) {
+      return null;
+    }
+
+    const element = node instanceof HTMLElement ? node : node.parentElement;
+
+    return element?.closest<HTMLElement>("[data-edit-field]") ?? null;
   }
 
   function commitEditableTarget(target: HTMLElement) {
@@ -536,30 +503,54 @@ function EmailVisualPreview({
       return;
     }
 
-    onInlineTextEdit(field, target.textContent ?? "");
+    onInlineTextEdit(field, target.innerHTML ?? target.textContent ?? "");
   }
 
   function insertPlainTextAtSelection(target: HTMLElement, text: string) {
     const selection = window.getSelection();
 
-    if (!selection?.rangeCount) {
-      target.textContent = `${target.textContent ?? ""}${text}`;
+    if (!selection) {
       return;
     }
 
-    const range = selection.getRangeAt(0);
+    const activeRange = selection.rangeCount ? selection.getRangeAt(0) : null;
+    const range =
+      activeRange && target.contains(activeRange.commonAncestorContainer)
+        ? activeRange
+        : document.createRange();
 
+    if (!target.contains(range.commonAncestorContainer)) {
+      range.selectNodeContents(target);
+      range.collapse(false);
+    }
+
+    target.focus();
     range.deleteContents();
-    const textNode = document.createTextNode(text);
-    range.insertNode(textNode);
-    range.setStartAfter(textNode);
+
+    const parts = text.split(/\r?\n/);
+
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        const breakNode = document.createElement("br");
+        range.insertNode(breakNode);
+        range.setStartAfter(breakNode);
+      }
+
+      if (part) {
+        const textNode = document.createTextNode(part);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+      }
+    });
+
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
+    commitEditableTarget(target);
   }
 
   return (
-    <div className="w-full overflow-x-hidden bg-slate-100 px-4 py-8">
+    <div className="w-full overflow-x-hidden rounded-md border border-slate-200 bg-slate-100 px-4 py-8 shadow-[var(--surface-shadow)]">
       <div
         className="mx-auto w-full max-w-[700px] overflow-hidden"
         ref={containerRef}

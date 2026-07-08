@@ -327,7 +327,7 @@ export function useCampaignDraft() {
     }
 
     try {
-      const parsed = JSON.parse(stored) as StoredDraftSnapshot;
+      JSON.parse(stored) as StoredDraftSnapshot;
       window.localStorage.setItem(
         storageKey,
         JSON.stringify({

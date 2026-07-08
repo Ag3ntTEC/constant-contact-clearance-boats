@@ -9,14 +9,14 @@ export function StartNewCampaignButton() {
 
   return (
     <button
-      className="rounded-md bg-harbor px-5 py-3 text-sm font-semibold text-white hover:bg-[#15566d]"
+      className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-tide"
       onClick={() => {
         clearSelectedBoats();
         router.push("/campaign/new/settings");
       }}
       type="button"
     >
-      Start new campaign
+      Start New Campaign
     </button>
   );
 }

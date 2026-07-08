@@ -5,4 +5,5 @@ dist
 build
 .env
 .env*.local
+.env.local.txt
 *.tsbuildinfo

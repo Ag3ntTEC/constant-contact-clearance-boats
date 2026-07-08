@@ -1,18 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { StepShell } from "../_components/StepShell";
-import { TextArea, TextField } from "../_components/FormControls";
-import { NextStepLink } from "../_components/NextStepLink";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ActionFooter, StepShell } from "../_components/StepShell";
+import { RichTextEditor, TextField } from "../_components/FormControls";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { Boat, EmailAssets, FeaturedListingSettings, HeaderSection } from "@/lib/types";
+import type { Boat, FeaturedListingSettings, HeaderSection } from "@/lib/types";
 
 type ImportedImageField =
   | "topBannerImageDataUrl"
   | "footerImageDataUrl";
 
+type EditorSection = "images" | "header" | "text" | "links";
+
+const editorSections: { description: string; id: EditorSection; label: string }[] = [
+  { description: "Banners and footer media", id: "images", label: "Images" },
+  { description: "Hero or featured listing", id: "header", label: "Header" },
+  { description: "Customer-facing wording", id: "text", label: "Email Text" },
+  { description: "Buttons and spacing", id: "links", label: "Links" },
+];
+
 export default function CampaignEditorPage() {
+  const [activeSection, setActiveSection] = useState<EditorSection>("images");
   const {
     addHeaderSection,
     removeHeaderSection,
@@ -42,11 +51,28 @@ export default function CampaignEditorPage() {
   return (
     <StepShell
       description="Add the reference-style campaign images, button links, and layout spacing."
+      footer={
+        <ActionFooter
+          backHref="/campaign/new/boats"
+          nextDescription={
+            selectedBoats.length
+              ? "Assets are saved automatically as you edit."
+              : "Select boats before the final preview."
+          }
+          nextDisabled={!selectedBoats.length}
+          nextHref="/campaign/new/preview"
+          nextLabel="Continue to Preview"
+        />
+      }
       selectedCount={selectedBoats.length}
       title="Edit campaign assets"
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="space-y-6">
+          <EditorTabs activeSection={activeSection} onChange={setActiveSection} />
+
+          {activeSection === "images" ? (
+            <>
           <SettingsCard
             description="Your public image URLs and link settings are saved automatically."
             title="Saved Settings"
@@ -54,7 +80,7 @@ export default function CampaignEditorPage() {
             <div className="flex flex-col gap-3 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
             <span>{settingsStatus}</span>
             <button
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-red-300 hover:text-red-700"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-red-300 hover:text-red-700"
               onClick={resetSavedSettings}
               type="button"
             >
@@ -97,7 +123,10 @@ export default function CampaignEditorPage() {
             />
           </div>
           </SettingsCard>
+            </>
+          ) : null}
 
+          {activeSection === "header" ? (
           <SettingsCard
             description="Choose whether the email opens with the default image header or a featured listing."
             title="Header Format"
@@ -123,7 +152,57 @@ export default function CampaignEditorPage() {
               )}
             </div>
           </SettingsCard>
+          ) : null}
 
+          {activeSection === "text" ? (
+          <SettingsCard
+            description="Edit the email wording. Text-size changes are handled directly in the preview."
+            title="Email Text"
+          >
+            <div className="grid gap-5 md:grid-cols-2">
+              <RichTextEditor
+                compact
+                label="Clearance heading text"
+                onChange={(value) => updateAsset("clearanceHeadingText", value)}
+                value={settings.assets.clearanceHeadingText}
+              />
+              <RichTextEditor
+                compact
+                label="Price label text"
+                onChange={(value) => updateAsset("priceLabelText", value)}
+                value={settings.assets.priceLabelText}
+              />
+              <RichTextEditor
+                compact
+                label="Footer heading"
+                onChange={(value) => updateAsset("footerHeading", value)}
+                value={settings.assets.footerHeading}
+              />
+              <RichTextEditor
+                compact
+                label="Footer business name"
+                onChange={(value) => updateAsset("footerBusinessName", value)}
+                value={settings.assets.footerBusinessName}
+              />
+              <div className="md:col-span-2">
+                <RichTextEditor
+                  label="Footer subtext"
+                  onChange={(value) => updateAsset("footerSubtext", value)}
+                  value={settings.assets.footerSubtext}
+                />
+              </div>
+              <RichTextEditor
+                compact
+                label="Contact button label"
+                onChange={(value) => updateAsset("contactButtonLabel", value)}
+                value={settings.assets.contactButtonLabel}
+              />
+            </div>
+          </SettingsCard>
+          ) : null}
+
+          {activeSection === "links" ? (
+            <>
           <SettingsCard
             description="These control where the email buttons send customers."
             title="Button Links"
@@ -177,19 +256,19 @@ export default function CampaignEditorPage() {
             />
           </div>
           </SettingsCard>
-
-          <NextStepLink href="/campaign/new/preview" label="Continue to preview" />
+            </>
+          ) : null}
         </section>
 
-        <aside className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Selected boats</h2>
+        <aside className="h-fit rounded-md border border-slate-200 bg-white p-5 shadow-[var(--surface-shadow)] lg:sticky lg:top-5">
+          <h2 className="text-lg font-bold text-ink">Selected Boats</h2>
           <p className="mt-1 text-sm text-slate-500">
             The final email uses selected order and only title, price, LOA, Beam, Engine, and details link.
           </p>
           <div className="mt-4 space-y-3">
             {selectedBoats.length ? (
               selectedBoats.map((boat, index) => (
-                <div className="rounded-md border border-slate-200 p-3" key={boat.id}>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={boat.id}>
                   <p className="text-xs font-semibold text-slate-400">#{index + 1}</p>
                   <p className="mt-1 text-sm font-semibold text-ink">{boat.displayTitle ?? boat.title}</p>
                   <p className="mt-1 text-sm font-bold text-red-700">
@@ -209,6 +288,40 @@ export default function CampaignEditorPage() {
         </aside>
       </div>
     </StepShell>
+  );
+}
+
+function EditorTabs({
+  activeSection,
+  onChange,
+}: {
+  activeSection: EditorSection;
+  onChange: (section: EditorSection) => void;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-2 shadow-[var(--tight-shadow)]">
+      <div className="grid gap-2 md:grid-cols-4">
+        {editorSections.map((section) => {
+          const isActive = section.id === activeSection;
+
+          return (
+            <button
+              className={`rounded-md px-4 py-3 text-left ${
+                isActive
+                  ? "bg-harbor text-white"
+                  : "bg-slate-50 text-slate-700 hover:bg-white hover:text-harbor"
+              }`}
+              key={section.id}
+              onClick={() => onChange(section.id)}
+              type="button"
+            >
+              <span className="block text-sm font-bold">{section.label}</span>
+              <span className="mt-1 block text-xs opacity-75">{section.description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -260,11 +373,22 @@ function FeaturedListingEditor({
     selectedBoats.find((selectedBoat) => selectedBoat.id === listing.boatId) ??
     selectedBoats[0] ??
     null;
-  const featuredBoatImages = getBoatImageOptions(featuredBoat);
+  const featuredBoatImages = useMemo(() => getBoatImageOptions(featuredBoat), [featuredBoat]);
+
+  useEffect(() => {
+    const validGalleryImages = listing.galleryImageUrls.filter((imageUrl) =>
+      featuredBoatImages.includes(imageUrl)
+    );
+
+    if (validGalleryImages.length !== listing.galleryImageUrls.length) {
+      updateFeaturedListing("galleryImageUrls", validGalleryImages);
+    }
+  }, [featuredBoatImages, listing.galleryImageUrls, updateFeaturedListing]);
 
   function handleBoatChange(boatId: string) {
     updateFeaturedListing("boatId", boatId);
     updateFeaturedListing("galleryImageUrls", []);
+    setIsGalleryMenuOpen(false);
 
     const boat = selectedBoats.find((selectedBoat) => selectedBoat.id === boatId);
 
@@ -317,7 +441,7 @@ function FeaturedListingEditor({
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Featured boat</span>
             <select
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4"
               onChange={(event) => handleBoatChange(event.target.value)}
               value={listing.boatId}
             >
@@ -330,14 +454,14 @@ function FeaturedListingEditor({
             </select>
           </label>
 
-          <TextField
+          <RichTextEditor
+            compact
             label="Featured label"
             onChange={(value) => updateFeaturedListing("label", value)}
-            placeholder="Featured Listing"
             value={listing.label}
           />
 
-          <TextArea
+          <RichTextEditor
             label="Featured headline"
             onChange={(value) => updateFeaturedListing("headline", value)}
             value={listing.headline}
@@ -355,7 +479,7 @@ function FeaturedListingEditor({
             width={listing.imageWidth}
           />
 
-          <div className="rounded-md border border-slate-200 p-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold text-ink">Featured boat gallery</p>
@@ -364,7 +488,7 @@ function FeaturedListingEditor({
                 </p>
               </div>
               <button
-                className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white"
+                className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor shadow-sm hover:bg-harbor hover:text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white"
                 disabled={!featuredBoatImages.length}
                 onClick={() => setIsGalleryMenuOpen((isOpen) => !isOpen)}
                 type="button"
@@ -383,14 +507,14 @@ function FeaturedListingEditor({
               <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-3 flex flex-wrap gap-2">
                   <button
-                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
                     onClick={() => updateFeaturedListing("galleryImageUrls", featuredBoatImages)}
                     type="button"
                   >
                     Select all
                   </button>
                   <button
-                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
                     onClick={() => updateFeaturedListing("galleryImageUrls", [])}
                     type="button"
                   >
@@ -414,7 +538,6 @@ function FeaturedListingEditor({
                           onChange={() => toggleGalleryImage(imageUrl)}
                           type="checkbox"
                         />
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           alt={`Featured boat option ${index + 1}`}
                           className="aspect-[4/3] w-full rounded-md bg-slate-100 object-cover"
@@ -434,20 +557,20 @@ function FeaturedListingEditor({
             ) : null}
           </div>
 
-          <TextField
+          <RichTextEditor
+            compact
             label="Featured title"
             onChange={(value) => updateFeaturedListing("title", value)}
-            placeholder="The Monterey 385 Super Sport..."
             value={listing.title}
           />
 
-          <TextArea
+          <RichTextEditor
             label="Featured description"
             onChange={(value) => updateFeaturedListing("body", value)}
             value={listing.body}
           />
 
-          <TextArea
+          <RichTextEditor
             label="Featured specs"
             onChange={(value) => updateFeaturedListing("specs", value)}
             value={listing.specs}
@@ -530,7 +653,7 @@ function HeaderSectionsEditor({
     <div className="space-y-4">
       <div className="flex justify-end">
         <button
-          className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white"
+          className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor shadow-sm hover:bg-harbor hover:text-white"
           onClick={addHeaderSection}
           type="button"
         >
@@ -540,19 +663,19 @@ function HeaderSectionsEditor({
 
       {sections.map((section, index) => {
         return (
-          <div className="rounded-md border border-slate-200 p-4" key={section.id}>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4" key={section.id}>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
               <div className="flex gap-2">
                 <button
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
                   onClick={addHeaderSection}
                   type="button"
                 >
                   +
                 </button>
                 <button
-                  className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
+                  className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:opacity-40"
                   disabled={sections.length === 1}
                   onClick={() => removeHeaderSection(section.id)}
                   type="button"
@@ -575,7 +698,7 @@ function HeaderSectionsEditor({
                 width={section.imageWidth}
               />
 
-              <TextArea
+              <RichTextEditor
                 label="Optional text below image"
                 onChange={(value) => updateHeaderSection(section.id, "text", value)}
                 value={section.text}
@@ -598,7 +721,7 @@ function SettingsCard({
   title: string;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-md border border-slate-200 bg-white p-6 shadow-[var(--tight-shadow)]">
       <div className="mb-5">
         <h2 className="text-lg font-semibold text-ink">{title}</h2>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
@@ -625,7 +748,7 @@ function NumberField({
     <label className="block">
       <span className="text-sm font-medium text-slate-700">{label}</span>
       <input
-        className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+        className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4"
         max={max}
         min={min}
         onChange={(event) => onChange(Number(event.target.value))}
@@ -660,7 +783,7 @@ function ImageAssetField({
   const previewUrl = value || importedPreviewUrl;
 
   return (
-    <div className="rounded-md border border-slate-200 p-4">
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
       <TextField
         label={`${label} URL`}
         onChange={onChange}
@@ -684,7 +807,7 @@ function ImageAssetField({
           <label>
             <span className="text-sm font-medium text-slate-700">Pixels</span>
             <input
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-harbor focus:ring-2"
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4"
               max={600}
               min={180}
               onChange={(event) => onWidthChange(Number(event.target.value))}
@@ -718,7 +841,6 @@ function ImageAssetField({
       </div>
       {previewUrl ? (
         <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-slate-50 p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img alt={`${label} preview`} className="max-h-36 w-auto max-w-full" src={previewUrl} />
         </div>
       ) : null}
