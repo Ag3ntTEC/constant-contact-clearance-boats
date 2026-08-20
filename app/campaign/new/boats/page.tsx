@@ -31,7 +31,7 @@ export default function BoatSelectionPage() {
     selectionMessage,
     toggleBoat,
     removeBoat,
-    moveBoat,
+    reorderBoats,
   } = useCampaignDraft();
   const [boats, setBoats] = useState<Boat[]>([]);
   const [activeBoatId, setActiveBoatId] = useState<string | null>(null);
@@ -265,7 +265,7 @@ export default function BoatSelectionPage() {
         <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
           <PreviewPanel boat={activeBoat} />
           <SelectedBoatsPanel
-            moveBoat={moveBoat}
+            reorderBoats={reorderBoats}
             removeBoat={removeBoat}
             selectedBoats={selectedBoats}
           />
@@ -557,28 +557,48 @@ function Spec({ label, value }: { label: string; value: string }) {
 }
 
 function SelectedBoatsPanel({
-  moveBoat,
+  reorderBoats,
   removeBoat,
   selectedBoats,
 }: {
-  moveBoat: (boatId: string, direction: "up" | "down") => void;
+  reorderBoats: (sourceBoatId: string, targetBoatId: string) => void;
   removeBoat: (boatId: string) => void;
   selectedBoats: Boat[];
 }) {
+  const [draggedBoatId, setDraggedBoatId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-[var(--tight-shadow)]">
       <h2 className="text-lg font-bold text-ink">Selected Order</h2>
       <p className="mt-1 text-sm text-slate-500">
-        This order controls the final email.
+        Drag boats by the handle to set the final email order.
       </p>
       <div className="mt-4 space-y-3">
         {selectedBoats.length ? (
           selectedBoats.map((boat, index) => (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={boat.id}>
+            <div
+              className={`rounded-md border bg-slate-50 p-3 transition ${dropTargetId === boat.id ? "border-harbor ring-2 ring-harbor/20" : "border-slate-200"} ${draggedBoatId === boat.id ? "opacity-50" : ""}`}
+              draggable
+              key={boat.id}
+              onDragEnd={() => { setDraggedBoatId(null); setDropTargetId(null); }}
+              onDragOver={(event) => { event.preventDefault(); setDropTargetId(boat.id); }}
+              onDragStart={(event) => { setDraggedBoatId(boat.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", boat.id); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const sourceId = event.dataTransfer.getData("text/plain") || draggedBoatId;
+                if (sourceId) reorderBoats(sourceId, boat.id);
+                setDraggedBoatId(null);
+                setDropTargetId(null);
+              }}
+            >
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex min-w-0 items-start gap-3">
+                  <span aria-hidden="true" className="cursor-grab select-none pt-1 text-lg leading-none text-slate-400 active:cursor-grabbing" title="Drag to reorder">⠿</span>
+                  <div>
                   <p className="text-xs font-semibold text-slate-400">#{index + 1}</p>
                   <p className="mt-1 text-sm font-semibold text-ink">{boat.displayTitle ?? boat.title}</p>
+                  </div>
                 </div>
                 <button
                   aria-label={`Remove ${boat.displayTitle ?? boat.title}`}
@@ -594,28 +614,6 @@ function SelectedBoatsPanel({
                 {boat.priceLabel ?? "Call"} | LOA {boat.formattedLoa ?? "N/A"} | Beam{" "}
                 {boat.formattedBeam ?? "N/A"} | {boat.engineDisplay || "Engine N/A"}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  aria-label={`Move ${boat.displayTitle ?? boat.title} up`}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:border-harbor hover:text-harbor disabled:opacity-40"
-                  disabled={index === 0}
-                  onClick={() => moveBoat(boat.id, "up")}
-                  title="Move up"
-                  type="button"
-                >
-                  ^
-                </button>
-                <button
-                  aria-label={`Move ${boat.displayTitle ?? boat.title} down`}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:border-harbor hover:text-harbor disabled:opacity-40"
-                  disabled={index === selectedBoats.length - 1}
-                  onClick={() => moveBoat(boat.id, "down")}
-                  title="Move down"
-                  type="button"
-                >
-                  v
-                </button>
-              </div>
             </div>
           ))
         ) : (

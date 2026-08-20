@@ -42,7 +42,7 @@ export function generateClearanceBoatEmailHtml(
           imageUrl: assets.heroImageUrl,
           imageDataUrl: assets.heroImageDataUrl,
           imageWidth: assets.heroImageWidth,
-          text: "",
+          blocks: [],
         },
       ];
 
@@ -122,18 +122,14 @@ function renderTopBanner(imageUrl: string | undefined, width: number, title: str
 function renderHeaderSection(section: HeaderSection): string {
   const src = normalizeImageSource(resolveImageSource(section.imageUrl, section.imageDataUrl));
   const imageWidth = clampImageWidth(section.imageWidth);
-  const text = stripRichText(section.text).trim();
-  const textRow = text
-    ? `<tr>
-      <td align="center" style="padding:8px 28px 16px 28px;">
-        <p data-edit-field="headerSections.${escapeAttribute(section.id)}.text" style="margin:0; color:#111827; font-size:15px; line-height:22px;">${formatRichText(section.text)}</p>
-      </td>
-    </tr>`
-    : `<tr>
-      <td align="center" style="padding:4px 28px 12px 28px;">
-        <p data-edit-field="headerSections.${escapeAttribute(section.id)}.text" style="margin:0; color:#64748b; font-size:13px; line-height:19px;"></p>
-      </td>
-    </tr>`;
+  const contentRows = (section.blocks ?? []).map((block) => {
+    if (block.type === "text") {
+      if (!stripRichText(block.content).trim()) return "";
+      return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><p data-edit-field="headerSections.${escapeAttribute(section.id)}.blocks.${escapeAttribute(block.id)}.content" style="margin:0; color:#111827; font-size:15px; line-height:22px;">${formatRichText(block.content)}</p></td></tr>`;
+    }
+    if (!block.label.trim() || !block.href.trim()) return "";
+    return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><a href="${escapeAttribute(block.href)}" style="display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(block.label)}</a></td></tr>`;
+  }).join("");
 
   if (!src) {
     return `<tr>
@@ -142,14 +138,14 @@ function renderHeaderSection(section: HeaderSection): string {
         <p style="margin:0; color:#e5486d; font-size:34px; line-height:38px; font-weight:bold;">CLEARANCE DEALS</p>
         <p style="margin:10px 0 0 0; color:#ffffff; font-size:17px; line-height:22px; font-weight:bold;">DO NOT MISS THE BOAT!</p>
       </td>
-    </tr>${textRow}`;
+    </tr>${contentRows}`;
   }
 
   return `<tr>
     <td align="center" style="padding:0 0 6px 0;">
       <img src="${escapeAttribute(src)}" width="${imageWidth}" alt="Checkout our clearance deals" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
     </td>
-  </tr>${textRow}`;
+  </tr>${contentRows}`;
 }
 
 function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]): string {

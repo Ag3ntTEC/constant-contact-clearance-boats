@@ -6,6 +6,7 @@ import type {
   CampaignSettings,
   EmailAssets,
   FeaturedListingSettings,
+  HeaderContentBlock,
   HeaderSection,
 } from "@/lib/types";
 import {
@@ -24,7 +25,7 @@ export const createHeaderSection = (
   imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageWidth: 520,
-  text: "",
+  blocks: [],
   ...overrides,
 });
 
@@ -41,7 +42,7 @@ export const defaultEmailAssets: EmailAssets = {
       imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageWidth: 520,
-      text: "",
+      blocks: [],
     },
   ],
   featuredListing: {
@@ -106,7 +107,7 @@ function mergeCampaignSettings(
   saved: StoredDraftSnapshot["settings"]
 ): CampaignSettings {
   const savedAssets: StoredDraftAssets = saved?.assets ?? {};
-  const headerSections =
+  const rawHeaderSections =
     savedAssets.headerSections && savedAssets.headerSections.length
       ? savedAssets.headerSections
       : [
@@ -117,6 +118,7 @@ function mergeCampaignSettings(
             imageWidth: savedAssets.heroImageWidth ?? defaults.assets.heroImageWidth,
           }),
         ];
+  const headerSections = rawHeaderSections.map(migrateHeaderSection);
 
   return {
     ...defaults,
@@ -130,6 +132,20 @@ function mergeCampaignSettings(
       },
       headerSections,
     },
+  };
+}
+
+function createHeaderBlockId() {
+  return `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function migrateHeaderSection(section: HeaderSection): HeaderSection {
+  if (Array.isArray(section.blocks)) return section;
+  return {
+    ...section,
+    blocks: section.text?.trim()
+      ? [{ id: createHeaderBlockId(), type: "text", content: section.text }]
+      : [],
   };
 }
 
@@ -250,6 +266,54 @@ export function useCampaignDraft() {
     }));
   }
 
+  function addHeaderBlock(sectionId: string, type: HeaderContentBlock["type"]) {
+    const block: HeaderContentBlock = type === "text"
+      ? { id: createHeaderBlockId(), type: "text", content: "" }
+      : { id: createHeaderBlockId(), type: "button", label: "Button text", href: "" };
+    setSettings((current) => ({ ...current, assets: {
+      ...current.assets,
+      headerSections: current.assets.headerSections.map((section) =>
+        section.id === sectionId ? { ...section, blocks: [...section.blocks, block] } : section
+      ),
+    }}));
+  }
+
+  function updateHeaderBlock(sectionId: string, blockId: string, updates: Partial<HeaderContentBlock>) {
+    setSettings((current) => ({ ...current, assets: {
+      ...current.assets,
+      headerSections: current.assets.headerSections.map((section) =>
+        section.id === sectionId
+          ? { ...section, blocks: section.blocks.map((block) => block.id === blockId ? { ...block, ...updates } as HeaderContentBlock : block) }
+          : section
+      ),
+    }}));
+  }
+
+  function removeHeaderBlock(sectionId: string, blockId: string) {
+    setSettings((current) => ({ ...current, assets: {
+      ...current.assets,
+      headerSections: current.assets.headerSections.map((section) =>
+        section.id === sectionId ? { ...section, blocks: section.blocks.filter((block) => block.id !== blockId) } : section
+      ),
+    }}));
+  }
+
+  function moveHeaderBlock(sectionId: string, blockId: string, direction: "up" | "down") {
+    setSettings((current) => ({ ...current, assets: {
+      ...current.assets,
+      headerSections: current.assets.headerSections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const index = section.blocks.findIndex((block) => block.id === blockId);
+        const target = direction === "up" ? index - 1 : index + 1;
+        if (index < 0 || target < 0 || target >= section.blocks.length) return section;
+        const blocks = [...section.blocks];
+        const [block] = blocks.splice(index, 1);
+        blocks.splice(target, 0, block);
+        return { ...section, blocks };
+      }),
+    }}));
+  }
+
   function updateFeaturedListing<K extends keyof FeaturedListingSettings>(
     field: K,
     value: FeaturedListingSettings[K]
@@ -280,12 +344,12 @@ export function useCampaignDraft() {
     setSelectedBoats((current) => current.filter((boat) => boat.id !== boatId));
   }
 
-  function moveBoat(boatId: string, direction: "up" | "down") {
+  function reorderBoats(sourceBoatId: string, targetBoatId: string) {
     setSelectedBoats((current) => {
-      const index = current.findIndex((boat) => boat.id === boatId);
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      const index = current.findIndex((boat) => boat.id === sourceBoatId);
+      const targetIndex = current.findIndex((boat) => boat.id === targetBoatId);
 
-      if (index < 0 || targetIndex < 0 || targetIndex >= current.length) {
+      if (index < 0 || targetIndex < 0 || index === targetIndex) {
         return current;
       }
 
@@ -342,13 +406,16 @@ export function useCampaignDraft() {
   return {
     canCreateCampaign,
     clearSelectedBoats,
+    addHeaderBlock,
     addHeaderSection,
     isHydrated,
     resetDraft,
     resetSavedSettings,
+    removeHeaderBlock,
     removeHeaderSection,
     removeBoat,
-    moveBoat,
+    moveHeaderBlock,
+    reorderBoats,
     selectedBoatIds,
     selectedBoats,
     selectionMessage,
@@ -357,6 +424,7 @@ export function useCampaignDraft() {
     toggleBoat,
     updateAsset,
     updateFeaturedListing,
+    updateHeaderBlock,
     updateHeaderSection,
     updateSetting,
   };

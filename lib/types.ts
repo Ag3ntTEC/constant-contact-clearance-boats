@@ -69,8 +69,13 @@ export type HeaderSection = {
   imageUrl: string;
   imageDataUrl?: string;
   imageWidth: number;
-  text: string;
+  blocks: HeaderContentBlock[];
+  text?: string;
 };
+
+export type HeaderContentBlock =
+  | { id: string; type: "text"; content: string }
+  | { id: string; type: "button"; label: string; href: string };
 
 export type FeaturedListingSettings = {
   enabled: boolean;

@@ -22,12 +22,23 @@ export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignS
 
     const parsed = JSON.parse(raw) as SavedSettingsSnapshot;
 
+    const assets = parsed.assets ?? {};
+    const headerSections = assets.headerSections?.map((section) => ({
+      ...section,
+      blocks: Array.isArray(section.blocks)
+        ? section.blocks
+        : section.text?.trim()
+          ? [{ id: `migrated-${section.id}`, type: "text" as const, content: section.text }]
+          : [],
+    }));
+
     return {
       ...defaults,
       ...parsed,
       assets: {
         ...defaults.assets,
-        ...(parsed.assets ?? {}),
+        ...assets,
+        ...(headerSections ? { headerSections } : {}),
         featuredListing: {
           ...defaults.assets.featuredListing,
           ...(parsed.assets?.featuredListing ?? {}),

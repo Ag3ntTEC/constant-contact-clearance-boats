@@ -15,7 +15,7 @@ export default function CampaignPreviewPage() {
     settings,
     updateAsset,
     updateFeaturedListing,
-    updateHeaderSection,
+    updateHeaderBlock,
   } = useCampaignDraft();
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
@@ -87,10 +87,10 @@ export default function CampaignPreviewPage() {
 
   function handleInlineTextEdit(field: string, value: string) {
     if (field.startsWith("headerSections.")) {
-      const [, sectionId, sectionField] = field.split(".");
+      const [, sectionId, group, blockId, blockField] = field.split(".");
 
-      if (sectionId && sectionField === "text") {
-        updateHeaderSection(sectionId, "text", value);
+      if (sectionId && group === "blocks" && blockId && blockField === "content") {
+        updateHeaderBlock(sectionId, blockId, { content: value });
       }
 
       return;

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActionFooter, StepShell } from "../_components/StepShell";
 import { RichTextEditor, TextField } from "../_components/FormControls";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { Boat, FeaturedListingSettings, HeaderSection } from "@/lib/types";
+import type { Boat, FeaturedListingSettings, HeaderContentBlock, HeaderSection } from "@/lib/types";
 
 type ImportedImageField =
   | "topBannerImageDataUrl"
@@ -23,7 +23,10 @@ const editorSections: { description: string; id: EditorSection; label: string }[
 export default function CampaignEditorPage() {
   const [activeSection, setActiveSection] = useState<EditorSection>("images");
   const {
+    addHeaderBlock,
     addHeaderSection,
+    moveHeaderBlock,
+    removeHeaderBlock,
     removeHeaderSection,
     resetSavedSettings,
     selectedBoats,
@@ -31,6 +34,7 @@ export default function CampaignEditorPage() {
     settingsStatus,
     updateAsset,
     updateFeaturedListing,
+    updateHeaderBlock,
     updateHeaderSection,
   } = useCampaignDraft();
 
@@ -144,10 +148,14 @@ export default function CampaignEditorPage() {
                 />
               ) : (
                 <HeaderSectionsEditor
+                  addHeaderBlock={addHeaderBlock}
                   addHeaderSection={addHeaderSection}
+                  moveHeaderBlock={moveHeaderBlock}
+                  removeHeaderBlock={removeHeaderBlock}
                   removeHeaderSection={removeHeaderSection}
                   sections={settings.assets.headerSections}
                   updateHeaderSection={updateHeaderSection}
+                  updateHeaderBlock={updateHeaderBlock}
                 />
               )}
             </div>
@@ -621,14 +629,22 @@ function buildFeaturedSpecs(boat: Boat) {
 }
 
 function HeaderSectionsEditor({
+  addHeaderBlock,
   addHeaderSection,
+  moveHeaderBlock,
+  removeHeaderBlock,
   removeHeaderSection,
   sections,
+  updateHeaderBlock,
   updateHeaderSection,
 }: {
+  addHeaderBlock: (sectionId: string, type: HeaderContentBlock["type"]) => void;
   addHeaderSection: () => void;
+  moveHeaderBlock: (sectionId: string, blockId: string, direction: "up" | "down") => void;
+  removeHeaderBlock: (sectionId: string, blockId: string) => void;
   removeHeaderSection: (sectionId: string) => void;
   sections: HeaderSection[];
+  updateHeaderBlock: (sectionId: string, blockId: string, updates: Partial<HeaderContentBlock>) => void;
   updateHeaderSection: <K extends keyof HeaderSection>(
     sectionId: string,
     field: K,
@@ -698,11 +714,40 @@ function HeaderSectionsEditor({
                 width={section.imageWidth}
               />
 
-              <RichTextEditor
-                label="Optional text below image"
-                onChange={(value) => updateHeaderSection(section.id, "text", value)}
-                value={section.text}
-              />
+              <div className="rounded-md border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Content below image</p>
+                    <p className="mt-1 text-xs text-slate-500">Add text and buttons in the order they should appear.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white" onClick={() => addHeaderBlock(section.id, "text")} type="button">+ Text block</button>
+                    <button className="rounded-md border border-harbor bg-white px-3 py-2 text-sm font-semibold text-harbor hover:bg-harbor hover:text-white" onClick={() => addHeaderBlock(section.id, "button")} type="button">+ Button block</button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {section.blocks.length ? section.blocks.map((block, blockIndex) => (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={block.id}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{block.type} block {blockIndex + 1}</p>
+                        <div className="flex gap-1">
+                          <button aria-label="Move block up" className="h-8 w-8 rounded border border-slate-300 bg-white disabled:opacity-40" disabled={blockIndex === 0} onClick={() => moveHeaderBlock(section.id, block.id, "up")} type="button">↑</button>
+                          <button aria-label="Move block down" className="h-8 w-8 rounded border border-slate-300 bg-white disabled:opacity-40" disabled={blockIndex === section.blocks.length - 1} onClick={() => moveHeaderBlock(section.id, block.id, "down")} type="button">↓</button>
+                          <button aria-label="Remove block" className="h-8 w-8 rounded border border-red-200 bg-white text-red-700" onClick={() => removeHeaderBlock(section.id, block.id)} type="button">×</button>
+                        </div>
+                      </div>
+                      {block.type === "text" ? (
+                        <RichTextEditor label="Text" onChange={(content) => updateHeaderBlock(section.id, block.id, { content })} value={block.content} />
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <TextField label="Button text" onChange={(label) => updateHeaderBlock(section.id, block.id, { label })} placeholder="Shop now" value={block.label} />
+                          <TextField label="Button URL" onChange={(href) => updateHeaderBlock(section.id, block.id, { href })} placeholder="https://example.com/" value={block.href} />
+                        </div>
+                      )}
+                    </div>
+                  )) : <p className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-500">No content blocks yet.</p>}
+                </div>
+              </div>
             </div>
           </div>
         );
