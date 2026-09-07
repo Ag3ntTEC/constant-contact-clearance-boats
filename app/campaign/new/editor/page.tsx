@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActionFooter, StepShell } from "../_components/StepShell";
 import { RichTextEditor, TextField } from "../_components/FormControls";
+import { HeaderImageHistoryModal } from "../_components/HeaderImageHistoryModal";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
 import type { Boat, FeaturedListingSettings, HeaderContentBlock, HeaderSection } from "@/lib/types";
 
@@ -651,6 +652,8 @@ function HeaderSectionsEditor({
     value: HeaderSection[K]
   ) => void;
 }) {
+  const [historyTargetSectionId, setHistoryTargetSectionId] = useState<string | null>(null);
+
   function handleSectionUpload(sectionId: string, file?: File) {
     if (!file) {
       updateHeaderSection(sectionId, "imageDataUrl", "");
@@ -683,6 +686,13 @@ function HeaderSectionsEditor({
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h3 className="text-base font-semibold text-ink">Header section {index + 1}</h3>
               <div className="flex gap-2">
+                <button
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
+                  onClick={() => setHistoryTargetSectionId(section.id)}
+                  type="button"
+                >
+                  Image history
+                </button>
                 <button
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
                   onClick={addHeaderSection}
@@ -752,6 +762,17 @@ function HeaderSectionsEditor({
           </div>
         );
       })}
+      {historyTargetSectionId ? (
+        <HeaderImageHistoryModal
+          onClose={() => setHistoryTargetSectionId(null)}
+          onSelect={(entry) => {
+            updateHeaderSection(historyTargetSectionId, "imageUrl", entry.imageUrl);
+            updateHeaderSection(historyTargetSectionId, "imageDataUrl", "");
+            updateHeaderSection(historyTargetSectionId, "imageWidth", entry.imageWidth);
+            setHistoryTargetSectionId(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
