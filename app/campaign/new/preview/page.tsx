@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { stripRichText } from "@/lib/richText";
+import { formatRichText, stripRichText } from "@/lib/richText";
 import { ActionFooter, StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
 import type { EmailAssets, FeaturedListingSettings } from "@/lib/types";
@@ -443,15 +443,47 @@ function EmailVisualPreview({
   const previewWidth = 700;
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const appliedHtmlRef = useRef("");
+  const commitTimerRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<HTMLElement | null>(null);
+  const selectionRangeRef = useRef<Range | null>(null);
+  const selectionTargetRef = useRef<HTMLElement | null>(null);
   const [height, setHeight] = useState(900);
   const [containerWidth, setContainerWidth] = useState(previewWidth);
+  const [canBoldSelection, setCanBoldSelection] = useState(false);
   const scale = Math.min(1, containerWidth / previewWidth);
   const wrapperHeight = Math.ceil(height * scale);
   const previewHtml = useMemo(() => makePreviewHtmlEditable(extractEmailBodyHtml(html)), [html]);
 
   useEffect(() => {
-    setHeight(900);
-  }, [html]);
+    const preview = previewRef.current;
+
+    if (!preview) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const activeEditor = activeElement instanceof Node
+      ? getEditableNodeTarget(activeElement)
+      : null;
+
+    if (activeEditor && preview.contains(activeEditor)) {
+      return;
+    }
+
+    if (appliedHtmlRef.current !== previewHtml) {
+      preview.innerHTML = previewHtml;
+      appliedHtmlRef.current = previewHtml;
+    }
+  }, [previewHtml]);
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current !== null) {
+        window.clearTimeout(commitTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -505,14 +537,108 @@ function EmailVisualPreview({
     return element?.closest<HTMLElement>("[data-edit-field]") ?? null;
   }
 
-  function commitEditableTarget(target: HTMLElement) {
+  function commitEditableTarget(target: HTMLElement, normalizeDom = false) {
     const field = target.dataset.editField;
 
     if (!field) {
       return;
     }
 
-    onInlineTextEdit(field, target.innerHTML ?? target.textContent ?? "");
+    const nextValue = formatRichText(target.innerHTML ?? target.textContent ?? "");
+
+    if (normalizeDom && target.innerHTML !== nextValue) {
+      target.innerHTML = nextValue;
+    }
+
+    onInlineTextEdit(field, nextValue);
+  }
+
+  function cancelScheduledCommit() {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    pendingTargetRef.current = null;
+  }
+
+  function scheduleEditableCommit(target: HTMLElement) {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+    }
+
+    pendingTargetRef.current = target;
+    commitTimerRef.current = window.setTimeout(() => {
+      const pendingTarget = pendingTargetRef.current;
+      commitTimerRef.current = null;
+      pendingTargetRef.current = null;
+
+      if (pendingTarget?.isConnected) {
+        commitEditableTarget(pendingTarget);
+      }
+    }, 300);
+  }
+
+  function rememberFormattingSelection() {
+    const preview = previewRef.current;
+    const selection = window.getSelection();
+
+    if (!preview || !selection?.rangeCount) {
+      setCanBoldSelection(false);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const startTarget = getEditableNodeTarget(range.startContainer);
+    const endTarget = getEditableNodeTarget(range.endContainer);
+
+    if (
+      !range.collapsed &&
+      startTarget &&
+      startTarget === endTarget &&
+      preview.contains(startTarget)
+    ) {
+      selectionRangeRef.current = range.cloneRange();
+      selectionTargetRef.current = startTarget;
+      setCanBoldSelection(true);
+      return;
+    }
+
+    setCanBoldSelection(false);
+  }
+
+  function toggleBoldSelection() {
+    const target = selectionTargetRef.current;
+    const range = selectionRangeRef.current;
+    const selection = window.getSelection();
+
+    if (
+      !target?.isConnected ||
+      !range ||
+      range.collapsed ||
+      !selection ||
+      !target.contains(range.startContainer) ||
+      !target.contains(range.endContainer)
+    ) {
+      setCanBoldSelection(false);
+      return;
+    }
+
+    target.focus();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    if (!document.execCommand("bold", false)) {
+      const strong = document.createElement("strong");
+      const selectedContent = range.extractContents();
+      strong.append(selectedContent);
+      range.insertNode(strong);
+      range.selectNodeContents(strong);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    rememberFormattingSelection();
+    scheduleEditableCommit(target);
   }
 
   function insertPlainTextAtSelection(target: HTMLElement, text: string) {
@@ -555,68 +681,104 @@ function EmailVisualPreview({
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
-    commitEditableTarget(target);
+    rememberFormattingSelection();
+    scheduleEditableCommit(target);
   }
 
   return (
-    <div className="w-full overflow-x-hidden rounded-md border border-slate-200 bg-slate-100 px-4 py-8 shadow-[var(--surface-shadow)]">
-      <div
-        className="mx-auto w-full max-w-[700px] overflow-hidden"
-        ref={containerRef}
-        style={{ height: wrapperHeight }}
-      >
+    <div className="w-full overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-[var(--surface-shadow)]">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">Inline editing</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Click a dashed text box to edit. Highlight text to make it bold.
+          </p>
+        </div>
+        <button
+          className="inline-flex min-w-28 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={!canBoldSelection}
+          onClick={toggleBoldSelection}
+          onMouseDown={(event) => event.preventDefault()}
+          title="Highlight text in the preview, then select Bold"
+          type="button"
+        >
+          <span aria-hidden="true" className="font-serif text-base font-black">B</span>
+          Bold
+        </button>
+      </div>
+      <div className="overflow-x-hidden px-4 py-8">
         <div
-          className="bg-white shadow-lg"
-          style={{
-            margin: "0 auto",
-            transform: `scale(${scale})`,
-            transformOrigin: "top center",
-            width: previewWidth,
-          }}
+          className="mx-auto w-full max-w-[700px] overflow-hidden"
+          ref={containerRef}
+          style={{ height: wrapperHeight }}
         >
           <div
-            className="overflow-hidden bg-white"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-            onBlurCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target) {
-                return;
-              }
-
-              commitEditableTarget(target);
+            className="bg-white shadow-lg"
+            style={{
+              margin: "0 auto",
+              transform: `scale(${scale})`,
+              transformOrigin: "top center",
+              width: previewWidth,
             }}
-            onClickCapture={(event) => {
-              const target = getEditableTarget(event.target);
+          >
+            <div
+              className="overflow-hidden bg-white"
+              onBlurCapture={(event) => {
+                const target = getEditableTarget(event.target);
 
-              if (target) {
+                if (!target) {
+                  return;
+                }
+
+                cancelScheduledCommit();
+                commitEditableTarget(target, true);
+                setCanBoldSelection(false);
+              }}
+              onClickCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (target) {
+                  event.preventDefault();
+                }
+              }}
+              onFocusCapture={rememberFormattingSelection}
+              onInputCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (target) {
+                  rememberFormattingSelection();
+                  scheduleEditableCommit(target);
+                }
+              }}
+              onKeyDownCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (
+                  target &&
+                  (event.ctrlKey || event.metaKey) &&
+                  event.key.toLowerCase() === "b"
+                ) {
+                  event.preventDefault();
+                  rememberFormattingSelection();
+                  toggleBoldSelection();
+                }
+              }}
+              onKeyUpCapture={rememberFormattingSelection}
+              onMouseUpCapture={rememberFormattingSelection}
+              onPasteCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (!target) {
+                  return;
+                }
+
                 event.preventDefault();
-              }
-            }}
-            onKeyDownCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target || event.key !== "Enter") {
-                return;
-              }
-
-              event.preventDefault();
-              commitEditableTarget(target);
-              target.blur();
-            }}
-            onPasteCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target) {
-                return;
-              }
-
-              event.preventDefault();
-              insertPlainTextAtSelection(target, event.clipboardData.getData("text/plain"));
-            }}
-            ref={previewRef}
-            style={{ width: previewWidth }}
-          />
+                insertPlainTextAtSelection(target, event.clipboardData.getData("text/plain"));
+              }}
+              ref={previewRef}
+              style={{ width: previewWidth }}
+            />
+          </div>
         </div>
       </div>
     </div>

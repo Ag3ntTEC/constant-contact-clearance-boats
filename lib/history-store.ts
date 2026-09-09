@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   isDraftHistoryEntry,
   isHeaderImageHistoryEntry,
+  normalizeHistoryImageUrl,
   summarizeDraft,
 } from "./history-data";
 import type {
@@ -25,6 +27,11 @@ type LocalHistoryStore = {
 type RedisResponse<T> = {
   error?: string;
   result?: T;
+};
+
+type IndexedRecord<T> = {
+  indexId: string;
+  record: T | null;
 };
 
 let localMutation = Promise.resolve();
@@ -92,13 +99,43 @@ export async function deleteDraftHistoryEntry(id: string) {
 
 export async function listHeaderImageHistory(): Promise<HeaderImageHistoryEntry[]> {
   if (getRedisConfig()) {
-    return listRemoteRecords(imageIndexKey, imageRecordKey, isHeaderImageHistoryEntry);
+    const indexedRecords = await listRemoteIndexedRecords(
+      imageIndexKey,
+      imageRecordKey,
+      isHeaderImageHistoryEntry,
+      null
+    );
+    const entries = compactHeaderImageEntries(
+      indexedRecords
+        .map(({ record }) => record)
+        .filter((record): record is HeaderImageHistoryEntry => record !== null),
+      false
+    ).slice(0, HISTORY_LIMIT);
+    const retainedIds = new Set(entries.map((entry) => entry.id));
+    const staleIds = indexedRecords
+      .map(({ indexId }) => indexId)
+      .filter((id) => !retainedIds.has(id));
+
+    if (staleIds.length) {
+      await deleteRemoteImageRecords(staleIds);
+    }
+
+    return entries;
   }
 
   const store = await readLocalStore();
-  return store.images
-    .sort((left, right) => right.usedAt.localeCompare(left.usedAt))
-    .slice(0, HISTORY_LIMIT);
+  const entries = compactHeaderImageEntries(store.images, false).slice(0, HISTORY_LIMIT);
+
+  if (!hasSameImageEntries(store.images, entries)) {
+    await mutateLocalStore((currentStore) => {
+      currentStore.images = compactHeaderImageEntries(currentStore.images, false).slice(
+        0,
+        HISTORY_LIMIT
+      );
+    });
+  }
+
+  return entries;
 }
 
 export async function saveHeaderImageHistoryEntries(entries: HeaderImageHistoryEntry[]) {
@@ -106,23 +143,42 @@ export async function saveHeaderImageHistoryEntries(entries: HeaderImageHistoryE
   if (!validEntries.length) return;
 
   if (getRedisConfig()) {
-    await redisPipeline(
-      validEntries.flatMap((entry) => [
+    const indexedRecords = await listRemoteIndexedRecords(
+      imageIndexKey,
+      imageRecordKey,
+      isHeaderImageHistoryEntry,
+      null
+    );
+    const existingEntries = indexedRecords
+      .map(({ record }) => record)
+      .filter((record): record is HeaderImageHistoryEntry => record !== null);
+    const nextEntries = compactHeaderImageEntries(
+      [...validEntries, ...existingEntries],
+      true
+    ).slice(0, HISTORY_LIMIT);
+    const retainedIds = new Set(nextEntries.map((entry) => entry.id));
+    const staleIds = indexedRecords
+      .map(({ indexId }) => indexId)
+      .filter((id) => !retainedIds.has(id));
+
+    await redisPipeline([
+      ...nextEntries.flatMap((entry) => [
         ["SET", imageRecordKey(entry.id), JSON.stringify(entry)],
         ["ZADD", imageIndexKey, Date.parse(entry.usedAt), entry.id],
-      ])
-    );
+      ]),
+      ...staleIds.flatMap((id) => [
+        ["DEL", imageRecordKey(id)],
+        ["ZREM", imageIndexKey, id],
+      ]),
+    ]);
     return;
   }
 
   await mutateLocalStore((store) => {
-    const incomingIds = new Set(validEntries.map((entry) => entry.id));
-    store.images = [
-      ...validEntries,
-      ...store.images.filter((entry) => !incomingIds.has(entry.id)),
-    ]
-      .sort((left, right) => right.usedAt.localeCompare(left.usedAt))
-      .slice(0, HISTORY_LIMIT);
+    store.images = compactHeaderImageEntries([...validEntries, ...store.images], true).slice(
+      0,
+      HISTORY_LIMIT
+    );
   });
 }
 
@@ -131,11 +187,29 @@ async function listRemoteRecords<T>(
   recordKey: (id: string) => string,
   guard: (value: unknown) => value is T
 ): Promise<T[]> {
+  const indexedRecords = await listRemoteIndexedRecords(
+    indexKey,
+    recordKey,
+    guard,
+    HISTORY_LIMIT
+  );
+
+  return indexedRecords
+    .map(({ record }) => record)
+    .filter((record): record is T => record !== null);
+}
+
+async function listRemoteIndexedRecords<T>(
+  indexKey: string,
+  recordKey: (id: string) => string,
+  guard: (value: unknown) => value is T,
+  limit: number | null
+): Promise<Array<IndexedRecord<T>>> {
   const ids = await redisCommand<string[]>([
     "ZREVRANGE",
     indexKey,
     0,
-    HISTORY_LIMIT - 1,
+    limit === null ? -1 : limit - 1,
   ]);
 
   if (!ids.length) return [];
@@ -145,9 +219,10 @@ async function listRemoteRecords<T>(
     ...ids.map(recordKey),
   ]);
 
-  return values
-    .map((value) => parseRecord(value, guard))
-    .filter((value): value is T => value !== null);
+  return ids.map((indexId, index) => ({
+    indexId,
+    record: parseRecord(values[index], guard),
+  }));
 }
 
 function parseRecord<T>(value: string | null | undefined, guard: (value: unknown) => value is T) {
@@ -279,4 +354,59 @@ function draftRecordKey(id: string) {
 
 function imageRecordKey(id: string) {
   return `${namespace}:header-image:${id}`;
+}
+
+function compactHeaderImageEntries(
+  entries: HeaderImageHistoryEntry[],
+  useStableIds: boolean
+): HeaderImageHistoryEntry[] {
+  const entriesByUrl = new Map<string, HeaderImageHistoryEntry>();
+
+  for (const entry of entries) {
+    const imageUrl = normalizeHistoryImageUrl(entry.imageUrl);
+    if (!imageUrl) continue;
+
+    const normalizedEntry = {
+      ...entry,
+      id: useStableIds ? stableImageHistoryId(imageUrl) : entry.id,
+      imageUrl,
+    };
+    const existing = entriesByUrl.get(imageUrl);
+
+    if (!existing || Date.parse(normalizedEntry.usedAt) > Date.parse(existing.usedAt)) {
+      entriesByUrl.set(imageUrl, normalizedEntry);
+    }
+  }
+
+  return [...entriesByUrl.values()].sort((left, right) =>
+    right.usedAt.localeCompare(left.usedAt)
+  );
+}
+
+function stableImageHistoryId(imageUrl: string) {
+  const digest = createHash("sha256").update(imageUrl).digest("hex").slice(0, 40);
+  return `image-${digest}`;
+}
+
+function hasSameImageEntries(
+  currentEntries: HeaderImageHistoryEntry[],
+  nextEntries: HeaderImageHistoryEntry[]
+) {
+  if (currentEntries.length !== nextEntries.length) {
+    return false;
+  }
+
+  return currentEntries.every(
+    (entry, index) =>
+      entry.id === nextEntries[index]?.id && entry.imageUrl === nextEntries[index]?.imageUrl
+  );
+}
+
+async function deleteRemoteImageRecords(ids: string[]) {
+  await redisPipeline(
+    ids.flatMap((id) => [
+      ["DEL", imageRecordKey(id)],
+      ["ZREM", imageIndexKey, id],
+    ])
+  );
 }

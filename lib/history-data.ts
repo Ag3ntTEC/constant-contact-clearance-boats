@@ -42,7 +42,7 @@ export function createHeaderImageHistoryEntries(
   const uniqueImages = new Map<string, number>();
 
   for (const section of settings.assets.headerSections) {
-    const imageUrl = normalizePublicImageUrl(section.imageUrl);
+    const imageUrl = normalizeHistoryImageUrl(section.imageUrl);
     if (imageUrl) uniqueImages.set(imageUrl, section.imageWidth);
   }
 
@@ -136,7 +136,7 @@ export function isHeaderImageHistoryEntry(value: unknown): value is HeaderImageH
     Number.isFinite(entry.imageWidth) &&
     typeof entry.usedAt === "string" &&
     Number.isFinite(Date.parse(entry.usedAt)) &&
-    Boolean(normalizePublicImageUrl(entry.imageUrl))
+    Boolean(normalizeHistoryImageUrl(entry.imageUrl))
   );
 }
 
@@ -144,12 +144,17 @@ export function isValidHistoryId(value: string) {
   return /^[a-zA-Z0-9-]{1,128}$/.test(value);
 }
 
-function normalizePublicImageUrl(value: string): string | null {
+export function normalizeHistoryImageUrl(value: string): string | null {
   const trimmed = value.trim();
 
   try {
     const url = new URL(trimmed);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return null;
+    }
+
+    url.hash = "";
+    return url.toString();
   } catch {
     return null;
   }

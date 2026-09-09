@@ -16,6 +16,7 @@ export function stripRichText(value: string): string {
 export function formatRichText(value: string): string {
   const output: string[] = [];
   const tagPattern = /<[^>]+>/g;
+  let boldDepth = 0;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -26,6 +27,10 @@ export function formatRichText(value: string): string {
   }
 
   appendText(value.slice(lastIndex));
+
+  if (boldDepth > 0) {
+    output.push("</strong>");
+  }
 
   return collapseExtraBreaks(output.join(""));
 
@@ -42,6 +47,24 @@ export function formatRichText(value: string): string {
   }
 
   function handleTag(tag: string) {
+    if (/^<(?:b|strong)\b/i.test(tag)) {
+      if (boldDepth === 0) {
+        output.push("<strong>");
+      }
+      boldDepth += 1;
+      return;
+    }
+
+    if (/^<\/(?:b|strong)>/i.test(tag)) {
+      if (boldDepth > 0) {
+        boldDepth -= 1;
+        if (boldDepth === 0) {
+          output.push("</strong>");
+        }
+      }
+      return;
+    }
+
     if (/^<br\b/i.test(tag)) {
       output.push("<br />");
       return;
