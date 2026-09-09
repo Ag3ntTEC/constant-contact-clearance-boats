@@ -68,6 +68,12 @@ export function StepShell({
                   {selectedCount} selected
                 </div>
               ) : null}
+              <Link
+                className="rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:border-harbor hover:text-harbor"
+                href="/history"
+              >
+                Draft History
+              </Link>
               <LogoutButton />
             </div>
           </div>

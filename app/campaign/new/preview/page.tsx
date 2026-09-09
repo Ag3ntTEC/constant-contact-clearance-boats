@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { recordHeaderImageHistory } from "@/lib/header-image-history";
 import { stripRichText } from "@/lib/richText";
 import { ActionFooter, StepShell } from "../_components/StepShell";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
@@ -14,6 +13,7 @@ export default function CampaignPreviewPage() {
     selectedBoats,
     selectionMessage,
     settings,
+    sourceDraftId,
     updateAsset,
     updateFeaturedListing,
     updateHeaderBlock,
@@ -149,6 +149,11 @@ export default function CampaignPreviewPage() {
           preheader: settings.preheader,
           replyToEmail: settings.replyToEmail,
           subject: settings.subject,
+          history: {
+            selectedBoats,
+            settings,
+            sourceDraftId,
+          },
         }),
         headers: {
           "Content-Type": "application/json",
@@ -167,7 +172,9 @@ export default function CampaignPreviewPage() {
         campaignId: data.campaignId,
         message: data.message,
       });
-      recordHeaderImageHistory(settings, { campaignId: data.campaignId });
+      if (data.historyWarning) {
+        setDraftError(data.historyWarning);
+      }
     } catch (error) {
       setDraftError(
         error instanceof Error ? error.message : "Unable to create Constant Contact draft."

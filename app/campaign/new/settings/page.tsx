@@ -6,8 +6,14 @@ import { TextField } from "../_components/FormControls";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
 
 export default function CampaignSettingsPage() {
-  const { resetSavedSettings, selectedBoats, settings, settingsStatus, updateSetting } =
-    useCampaignDraft();
+  const {
+    resetSavedSettings,
+    restoreNotice,
+    selectedBoats,
+    settings,
+    settingsStatus,
+    updateSetting,
+  } = useCampaignDraft();
   const detailsReady = Boolean(settings.name.trim() && settings.subject.trim());
   const senderReady = Boolean(
     settings.fromName?.trim() && settings.fromEmail?.trim() && settings.replyToEmail?.trim()
@@ -32,6 +38,12 @@ export default function CampaignSettingsPage() {
       selectedCount={selectedBoats.length}
       title="Campaign settings"
     >
+      {restoreNotice ? (
+        <div className="mb-6 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">
+          <p className="font-bold">Draft loaded as a new project</p>
+          <p className="mt-1">{restoreNotice}</p>
+        </div>
+      ) : null}
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <SettingsCard

@@ -4,6 +4,15 @@ import {
   createConstantContactEmailDraft,
   type ConstantContactCreateEmailPayload,
 } from "@/lib/constant-contact";
+import {
+  createDraftHistoryEntry,
+  createHeaderImageHistoryEntries,
+} from "@/lib/history-data";
+import {
+  saveDraftHistoryEntry,
+  saveHeaderImageHistoryEntries,
+} from "@/lib/history-store";
+import type { Boat, CampaignSettings } from "@/lib/types";
 
 type CreateDraftRequest = {
   campaignName?: string;
@@ -13,6 +22,11 @@ type CreateDraftRequest = {
   preheader?: string;
   replyToEmail?: string;
   subject?: string;
+  history?: {
+    selectedBoats?: Boat[];
+    settings?: CampaignSettings;
+    sourceDraftId?: string;
+  };
 };
 
 export async function POST(request: NextRequest) {
@@ -32,9 +46,17 @@ export async function POST(request: NextRequest) {
         (activity: { role?: string }) => activity.role === "primary_email"
       )?.campaign_activity_id ?? response?.campaign_activities?.[0]?.campaign_activity_id;
 
+    const historyResult = await recordSuccessfulDraftHistory({
+      body,
+      campaignActivityId,
+      campaignId: response?.campaign_id,
+    });
+
     return NextResponse.json({
       campaignActivityId,
       campaignId: response?.campaign_id,
+      historySaved: historyResult.saved,
+      historyWarning: historyResult.warning,
       message:
         "Draft created in Constant Contact. Review it there before scheduling or sending.",
       response,
@@ -63,6 +85,49 @@ export async function POST(request: NextRequest) {
   }
 }
 
+async function recordSuccessfulDraftHistory({
+  body,
+  campaignActivityId,
+  campaignId,
+}: {
+  body: CreateDraftRequest;
+  campaignActivityId?: string;
+  campaignId?: string;
+}) {
+  const history = body.history;
+
+  if (!history?.settings || !Array.isArray(history.selectedBoats)) {
+    return { saved: false, warning: "The draft was created without a history snapshot." };
+  }
+
+  try {
+    const historyId = campaignId || crypto.randomUUID();
+    const draftEntry = createDraftHistoryEntry({
+      campaignActivityId,
+      campaignId,
+      id: historyId,
+      selectedBoats: history.selectedBoats,
+      settings: history.settings,
+      sourceDraftId: history.sourceDraftId,
+    });
+    const imageEntries = createHeaderImageHistoryEntries(history.settings, { campaignId });
+
+    await Promise.all([
+      saveDraftHistoryEntry(draftEntry),
+      saveHeaderImageHistoryEntries(imageEntries),
+    ]);
+
+    return { saved: true, warning: undefined };
+  } catch (error) {
+    console.error("Unable to save shared campaign history", error);
+    return {
+      saved: false,
+      warning:
+        "The Constant Contact draft was created, but its shared history snapshot could not be saved.",
+    };
+  }
+}
+
 function buildCreateEmailPayload(
   body: Required<CreateDraftRequest>
 ): ConstantContactCreateEmailPayload {
@@ -86,7 +151,9 @@ function buildCreateEmailPayload(
 }
 
 function validateRequest(body: CreateDraftRequest) {
-  const requiredFields: Array<[keyof CreateDraftRequest, string]> = [
+  const requiredFields: Array<
+    ["campaignName" | "fromEmail" | "fromName" | "htmlContent" | "replyToEmail" | "subject", string]
+  > = [
     ["campaignName", "Campaign name is required."],
     ["subject", "Subject line is required."],
     ["fromName", "From name is required."],

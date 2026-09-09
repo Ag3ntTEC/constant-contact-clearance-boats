@@ -105,6 +105,12 @@ export default function Dashboard() {
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <StartNewCampaignButton />
             <Link
+              className="rounded-md border border-harbor bg-white px-5 py-3 text-sm font-semibold text-harbor shadow-sm hover:bg-harbor hover:text-white"
+              href="/history"
+            >
+              Draft History
+            </Link>
+            <Link
               className="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor"
               href={continueHref}
             >
