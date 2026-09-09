@@ -12,7 +12,9 @@ type HeaderImageHistoryModalProps = {
 };
 
 export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistoryModalProps) {
-  const [entries] = useState(loadHeaderImageHistory);
+  const [entries, setEntries] = useState<HeaderImageHistoryEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -41,6 +43,32 @@ export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistor
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadEntries() {
+      try {
+        const nextEntries = await loadHeaderImageHistory();
+        if (isCurrent) setEntries(nextEntries);
+      } catch (loadError) {
+        if (isCurrent) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load shared image history."
+          );
+        }
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    }
+
+    loadEntries();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   async function copyImageUrl(entry: HeaderImageHistoryEntry) {
     try {
@@ -71,7 +99,7 @@ export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistor
               Header image history
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Images recorded when a Constant Contact draft was successfully created.
+              Images recorded from successful drafts and shared across every signed-in device.
             </p>
           </div>
           <button
@@ -99,7 +127,16 @@ export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistor
         </div>
 
         <div className="overflow-y-auto p-5 sm:p-6">
-          {filteredEntries.length ? (
+          {isLoading ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+              <p className="font-semibold text-slate-700">Loading shared image history...</p>
+            </div>
+          ) : error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-8 text-center">
+              <p className="font-semibold text-red-800">Image history is unavailable</p>
+              <p className="mt-2 text-sm text-red-700">{error}</p>
+            </div>
+          ) : filteredEntries.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {filteredEntries.map((entry) => (
                 <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" key={entry.id}>

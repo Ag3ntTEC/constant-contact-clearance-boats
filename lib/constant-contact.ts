@@ -135,6 +135,29 @@ export async function createConstantContactEmailDraft(
   return responseBody;
 }
 
+export async function deleteConstantContactEmailCampaign(campaignId: string) {
+  const config = getConstantContactConfig();
+  const accessToken = await refreshConstantContactAccessToken();
+  const response = await fetch(
+    `${config.apiBaseUrl}/emails/${encodeURIComponent(campaignId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new ConstantContactApiError(
+      "Constant Contact rejected the delete request.",
+      response.status,
+      parseJson(responseText) ?? responseText
+    );
+  }
+}
+
 async function requestConstantContactToken(body: URLSearchParams): Promise<TokenResponse> {
   const config = getConstantContactConfig();
   const response = await fetch(config.tokenUrl, {

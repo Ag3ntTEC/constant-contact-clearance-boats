@@ -15,8 +15,14 @@ import {
   loadSavedCampaignSettings,
   saveCampaignSettings,
 } from "@/lib/saved-settings";
+import {
+  consumeDraftRestoreNotice,
+  DRAFT_WORKSPACE_STORAGE_KEY,
+  loadDraftWorkspace,
+  saveDraftWorkspace,
+} from "@/lib/draft-workspace";
 
-export const storageKey = "constant-contact-clearance-boats:draft";
+export const storageKey = DRAFT_WORKSPACE_STORAGE_KEY;
 
 export const createHeaderSection = (
   overrides: Partial<HeaderSection> = {}
@@ -100,6 +106,7 @@ type StoredDraftSnapshot = {
     assets?: StoredDraftAssets;
   };
   selectedBoats?: Boat[];
+  sourceDraftId?: string;
 };
 
 function mergeCampaignSettings(
@@ -154,26 +161,32 @@ export function useCampaignDraft() {
   const [settings, setSettings] = useState<CampaignSettings>(defaultCampaignSettings);
   const [settingsStatus, setSettingsStatus] = useState("Settings saved automatically");
   const [selectedBoats, setSelectedBoats] = useState<Boat[]>([]);
+  const [sourceDraftId, setSourceDraftId] = useState<string | undefined>();
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const hadSavedSettings = hasSavedCampaignSettings();
     let nextSettings = loadSavedCampaignSettings(defaultCampaignSettings);
-    const stored = window.localStorage.getItem(storageKey);
+    const stored = loadDraftWorkspace();
 
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as StoredDraftSnapshot;
-        if (!hadSavedSettings && parsed.settings) {
-          nextSettings = mergeCampaignSettings(defaultCampaignSettings, parsed.settings);
-        }
-        setSelectedBoats(parsed.selectedBoats ?? []);
-      } catch {
-        window.localStorage.removeItem(storageKey);
+      const parsed = stored as StoredDraftSnapshot;
+      if ((!hadSavedSettings || parsed.sourceDraftId) && parsed.settings) {
+        nextSettings = mergeCampaignSettings(defaultCampaignSettings, parsed.settings);
       }
+      setSelectedBoats(parsed.selectedBoats ?? []);
+      setSourceDraftId(parsed.sourceDraftId);
     }
 
     setSettings(nextSettings);
-    setSettingsStatus(hadSavedSettings ? "Loaded saved settings" : "Settings saved automatically");
+    setRestoreNotice(consumeDraftRestoreNotice());
+    setSettingsStatus(
+      stored?.sourceDraftId
+        ? "Loaded from shared draft history"
+        : hadSavedSettings
+          ? "Loaded saved settings"
+          : "Settings saved automatically"
+    );
     setIsHydrated(true);
   }, []);
 
@@ -182,12 +195,9 @@ export function useCampaignDraft() {
       return;
     }
 
-    const stored: StoredDraft = {
-      selectedBoats,
-    };
-
-    window.localStorage.setItem(storageKey, JSON.stringify(stored));
-  }, [isHydrated, selectedBoats]);
+    const stored: StoredDraft & { sourceDraftId?: string } = { selectedBoats, sourceDraftId };
+    saveDraftWorkspace(stored);
+  }, [isHydrated, selectedBoats, sourceDraftId]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -364,6 +374,7 @@ export function useCampaignDraft() {
   function resetDraft() {
     setSettings(defaultCampaignSettings);
     setSelectedBoats([]);
+    setSourceDraftId(undefined);
     window.localStorage.removeItem(storageKey);
   }
 
@@ -383,24 +394,8 @@ export function useCampaignDraft() {
 
   function clearSelectedBoats() {
     setSelectedBoats([]);
-
-    const stored = window.localStorage.getItem(storageKey);
-
-    if (!stored) {
-      return;
-    }
-
-    try {
-      JSON.parse(stored) as StoredDraftSnapshot;
-      window.localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          selectedBoats: [],
-        })
-      );
-    } catch {
-      window.localStorage.removeItem(storageKey);
-    }
+    setSourceDraftId(undefined);
+    saveDraftWorkspace({ selectedBoats: [] });
   }
 
   return {
@@ -421,6 +416,8 @@ export function useCampaignDraft() {
     selectionMessage,
     settings,
     settingsStatus,
+    restoreNotice,
+    sourceDraftId,
     toggleBoat,
     updateAsset,
     updateFeaturedListing,
