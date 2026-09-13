@@ -17,14 +17,9 @@ const steps = [
     label: "Boats",
   },
   {
-    description: "Tune content",
-    href: "/campaign/new/editor",
-    label: "Editor",
-  },
-  {
-    description: "Check and draft",
+    description: "Design and draft",
     href: "/campaign/new/preview",
-    label: "Preview",
+    label: "Editor & Preview",
   },
 ];
 
@@ -77,7 +72,7 @@ export function StepShell({
               <LogoutButton />
             </div>
           </div>
-          <nav className="grid gap-3 md:grid-cols-4">
+          <nav className="grid gap-3 md:grid-cols-3">
             {steps.map((step, index) => (
               <Link
                 className={`rounded-md border px-4 py-3 shadow-sm ${
@@ -181,10 +176,6 @@ function getStepStatus(href: string, selectedCount: number) {
 
   if (href === "/campaign/new/boats") {
     return selectedCount > 0 ? "Complete" : "Needs boats";
-  }
-
-  if (href === "/campaign/new/editor") {
-    return selectedCount > 0 ? "Ready" : "Locked";
   }
 
   if (href === "/campaign/new/preview") {

@@ -142,8 +142,8 @@ export default function BoatSelectionPage() {
               : "Select at least one boat to continue."
           }
           nextDisabled={!canContinue}
-          nextHref="/campaign/new/editor"
-          nextLabel="Continue to Editor"
+          nextHref="/campaign/new/preview"
+          nextLabel="Continue to Editor & Preview"
         />
       }
       selectedCount={selectedBoats.length}

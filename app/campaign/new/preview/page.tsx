@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { stripRichText } from "@/lib/richText";
+import { formatRichText, stripRichText } from "@/lib/richText";
 import { ActionFooter, StepShell } from "../_components/StepShell";
+import { CampaignContentEditor } from "../_components/CampaignContentEditor";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { EmailAssets, FeaturedListingSettings } from "@/lib/types";
+import type { EmailAssets, FeaturedListingSettings, TextFormat } from "@/lib/types";
 
 export default function CampaignPreviewPage() {
+  const draft = useCampaignDraft();
   const {
     canCreateCampaign,
     selectedBoats,
@@ -16,8 +18,10 @@ export default function CampaignPreviewPage() {
     sourceDraftId,
     updateAsset,
     updateFeaturedListing,
+    updateFooterBlock,
     updateHeaderBlock,
-  } = useCampaignDraft();
+    updateTextFormat,
+  } = draft;
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -107,6 +111,13 @@ export default function CampaignPreviewPage() {
       return;
     }
 
+    if (field.startsWith("footerBlocks.")) {
+      const [, blockId, blockField] = field.split(".");
+
+      if (blockId && blockField === "content") updateFooterBlock(blockId, { content: value });
+      return;
+    }
+
     if (field === "priceLabelText") {
       updateAsset("priceLabelText", extractPriceLabelEdit(value));
       return;
@@ -186,10 +197,10 @@ export default function CampaignPreviewPage() {
 
   return (
     <StepShell
-      description="Review the final table-based email before the future Constant Contact draft step."
+      description="Edit header and footer content beside the live email, then create the Constant Contact draft."
       footer={
         <ActionFooter
-          backHref="/campaign/new/editor"
+          backHref="/campaign/new/boats"
           nextDescription={validationMessage ?? "Ready to create a Constant Contact draft."}
         >
           <button
@@ -203,7 +214,7 @@ export default function CampaignPreviewPage() {
         </ActionFooter>
       }
       selectedCount={selectedBoats.length}
-      title="Preview email"
+      title="Editor & preview"
     >
       <div className="mb-5 flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-5 shadow-[var(--tight-shadow)] md:flex-row md:items-center md:justify-between">
         <div>
@@ -251,7 +262,9 @@ export default function CampaignPreviewPage() {
         </div>
       ) : null}
 
-      <section>
+      <section className="grid items-start gap-5 lg:grid-cols-2">
+        <CampaignContentEditor draft={draft} />
+        <div className="min-w-0 lg:sticky lg:top-5">
         <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-[var(--tight-shadow)]">
           <button
             className={`rounded-md px-4 py-2 text-sm font-semibold ${
@@ -278,12 +291,18 @@ export default function CampaignPreviewPage() {
         </div>
 
         {activeTab === "visual" ? (
-          <EmailVisualPreview html={emailHtml} onInlineTextEdit={handleInlineTextEdit} />
+          <EmailVisualPreview
+            html={emailHtml}
+            onInlineTextEdit={handleInlineTextEdit}
+            onInlineTextFormat={updateTextFormat}
+            textFormats={settings.assets.textFormats}
+          />
         ) : (
           <pre className="max-h-[720px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-4 text-xs leading-5 text-slate-100">
             {emailHtml}
           </pre>
         )}
+        </div>
       </section>
     </StepShell>
   );
@@ -436,22 +455,60 @@ function containsNonPublicImageReference(html: string) {
 function EmailVisualPreview({
   html,
   onInlineTextEdit,
+  onInlineTextFormat,
+  textFormats,
 }: {
   html: string;
   onInlineTextEdit: (field: string, value: string) => void;
+  onInlineTextFormat: (field: string, updates: Partial<TextFormat>) => void;
+  textFormats: Record<string, TextFormat>;
 }) {
   const previewWidth = 700;
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const appliedHtmlRef = useRef("");
+  const commitTimerRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<HTMLElement | null>(null);
+  const selectionRangeRef = useRef<Range | null>(null);
+  const selectionTargetRef = useRef<HTMLElement | null>(null);
   const [height, setHeight] = useState(900);
   const [containerWidth, setContainerWidth] = useState(previewWidth);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [canFormatSelection, setCanFormatSelection] = useState(false);
   const scale = Math.min(1, containerWidth / previewWidth);
   const wrapperHeight = Math.ceil(height * scale);
   const previewHtml = useMemo(() => makePreviewHtmlEditable(extractEmailBodyHtml(html)), [html]);
+  const activeFormat = activeField ? textFormats[activeField] ?? {} : {};
 
   useEffect(() => {
-    setHeight(900);
-  }, [html]);
+    const preview = previewRef.current;
+
+    if (!preview) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const activeEditor = activeElement instanceof Node
+      ? getEditableNodeTarget(activeElement)
+      : null;
+
+    if (activeEditor && preview.contains(activeEditor)) {
+      return;
+    }
+
+    if (appliedHtmlRef.current !== previewHtml) {
+      preview.innerHTML = previewHtml;
+      appliedHtmlRef.current = previewHtml;
+    }
+  });
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current !== null) {
+        window.clearTimeout(commitTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -505,14 +562,144 @@ function EmailVisualPreview({
     return element?.closest<HTMLElement>("[data-edit-field]") ?? null;
   }
 
-  function commitEditableTarget(target: HTMLElement) {
+  function commitEditableTarget(target: HTMLElement, normalizeDom = false) {
     const field = target.dataset.editField;
 
     if (!field) {
       return;
     }
 
-    onInlineTextEdit(field, target.innerHTML ?? target.textContent ?? "");
+    const nextValue = formatRichText(target.innerHTML ?? target.textContent ?? "");
+
+    if (normalizeDom && target.innerHTML !== nextValue) {
+      target.innerHTML = nextValue;
+    }
+
+    onInlineTextEdit(field, nextValue);
+  }
+
+  function cancelScheduledCommit() {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    pendingTargetRef.current = null;
+  }
+
+  function scheduleEditableCommit(target: HTMLElement) {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+    }
+
+    pendingTargetRef.current = target;
+    commitTimerRef.current = window.setTimeout(() => {
+      const pendingTarget = pendingTargetRef.current;
+      commitTimerRef.current = null;
+      pendingTargetRef.current = null;
+
+      if (pendingTarget?.isConnected) {
+        commitEditableTarget(pendingTarget);
+      }
+    }, 300);
+  }
+
+  function rememberFormattingSelection() {
+    const preview = previewRef.current;
+    const selection = window.getSelection();
+
+    if (!preview || !selection?.rangeCount) {
+      setCanFormatSelection(false);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const startTarget = getEditableNodeTarget(range.startContainer);
+    const endTarget = getEditableNodeTarget(range.endContainer);
+
+    if (
+      startTarget &&
+      startTarget === endTarget &&
+      preview.contains(startTarget)
+    ) {
+      selectionRangeRef.current = range.cloneRange();
+      selectionTargetRef.current = startTarget;
+      setActiveField(startTarget.dataset.editField ?? null);
+      setCanFormatSelection(!range.collapsed);
+      return;
+    }
+
+    setCanFormatSelection(false);
+  }
+
+  function applyInlineCommand(command: "bold" | "italic" | "underline") {
+    const target = selectionTargetRef.current;
+    const range = selectionRangeRef.current;
+    const selection = window.getSelection();
+
+    if (
+      !target?.isConnected ||
+      !range ||
+      range.collapsed ||
+      !selection ||
+      !target.contains(range.startContainer) ||
+      !target.contains(range.endContainer)
+    ) {
+      setCanFormatSelection(false);
+      return;
+    }
+
+    target.focus();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    if (!document.execCommand(command, false)) {
+      const tagName = command === "bold" ? "strong" : command === "italic" ? "em" : "u";
+      const wrapper = document.createElement(tagName);
+      const selectedContent = range.extractContents();
+      wrapper.append(selectedContent);
+      range.insertNode(wrapper);
+      range.selectNodeContents(wrapper);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    rememberFormattingSelection();
+    scheduleEditableCommit(target);
+  }
+
+  function applyBlockFormat(updates: Partial<TextFormat>) {
+    const target = selectionTargetRef.current;
+    const field = target?.dataset.editField ?? activeField;
+
+    if (!target?.isConnected || !field) return;
+
+    if (updates.fontSize !== undefined) {
+      target.style.fontSize = `${updates.fontSize}px`;
+      target.style.lineHeight = `${Math.round(updates.fontSize * 1.35)}px`;
+    }
+    if (updates.textAlign !== undefined) target.style.textAlign = updates.textAlign;
+    if (updates.color !== undefined) target.style.color = updates.color;
+    onInlineTextFormat(field, updates);
+  }
+
+  function clearFormatting() {
+    const target = selectionTargetRef.current;
+    const field = target?.dataset.editField ?? activeField;
+
+    if (!field) return;
+    const selection = window.getSelection();
+    const range = selectionRangeRef.current;
+
+    if (canFormatSelection && target && range && selection) {
+      target.focus();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.execCommand("removeFormat", false);
+      scheduleEditableCommit(target);
+    }
+    onInlineTextFormat(field, { color: undefined, fontSize: undefined, textAlign: undefined });
+    setActiveField(null);
+    target?.blur();
   }
 
   function insertPlainTextAtSelection(target: HTMLElement, text: string) {
@@ -555,68 +742,137 @@ function EmailVisualPreview({
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
-    commitEditableTarget(target);
+    rememberFormattingSelection();
+    scheduleEditableCommit(target);
   }
 
   return (
-    <div className="w-full overflow-x-hidden rounded-md border border-slate-200 bg-slate-100 px-4 py-8 shadow-[var(--surface-shadow)]">
-      <div
-        className="mx-auto w-full max-w-[700px] overflow-hidden"
-        ref={containerRef}
-        style={{ height: wrapperHeight }}
-      >
+    <div className="w-full overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-[var(--surface-shadow)]">
+      <div className="border-b border-slate-200 bg-white px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-ink">Inline editing</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Click a dashed text box. Highlight text for bold, italic, or underline.
+          </p>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Font size"
+            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            disabled={!activeField}
+            onChange={(event) => applyBlockFormat({ fontSize: Number(event.target.value) })}
+            value={activeFormat.fontSize ?? ""}
+          >
+            <option value="">Font size</option>
+            {[10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42].map((size) => <option key={size} value={size}>{size}px</option>)}
+          </select>
+          {(["bold", "italic", "underline"] as const).map((command) => (
+            <button
+              aria-label={command}
+              className={`h-8 min-w-8 rounded border border-slate-300 bg-white px-2 text-sm text-slate-700 hover:border-harbor hover:text-harbor disabled:opacity-40 ${command === "bold" ? "font-bold" : command === "italic" ? "italic" : "underline"}`}
+              disabled={!canFormatSelection}
+              key={command}
+              onClick={() => applyInlineCommand(command)}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              {command[0].toUpperCase()}
+            </button>
+          ))}
+          <span className="mx-1 h-6 w-px bg-slate-200" />
+          {(["left", "center", "right"] as const).map((alignment) => (
+            <button
+              aria-label={`Align ${alignment}`}
+              className={`h-8 rounded border px-2 text-xs font-semibold ${activeFormat.textAlign === alignment ? "border-harbor bg-mist text-harbor" : "border-slate-300 bg-white text-slate-600"}`}
+              disabled={!activeField}
+              key={alignment}
+              onClick={() => applyBlockFormat({ textAlign: alignment })}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              {alignment === "left" ? "≡←" : alignment === "center" ? "≡" : "→≡"}
+            </button>
+          ))}
+          <label className="flex h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600">
+            Color
+            <input aria-label="Text color" className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" disabled={!activeField} onChange={(event) => applyBlockFormat({ color: event.target.value })} type="color" value={activeFormat.color ?? "#111827"} />
+          </label>
+          <button className="h-8 rounded border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:opacity-40" disabled={!activeField} onClick={clearFormatting} onMouseDown={(event) => event.preventDefault()} type="button">Clear</button>
+        </div>
+      </div>
+      <div className="overflow-x-hidden px-4 py-8">
         <div
-          className="bg-white shadow-lg"
-          style={{
-            margin: "0 auto",
-            transform: `scale(${scale})`,
-            transformOrigin: "top center",
-            width: previewWidth,
-          }}
+          className="mx-auto w-full max-w-[700px] overflow-hidden"
+          ref={containerRef}
+          style={{ height: wrapperHeight }}
         >
           <div
-            className="overflow-hidden bg-white"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-            onBlurCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target) {
-                return;
-              }
-
-              commitEditableTarget(target);
+            className="bg-white shadow-lg"
+            style={{
+              margin: "0 auto",
+              transform: `scale(${scale})`,
+              transformOrigin: "top center",
+              width: previewWidth,
             }}
-            onClickCapture={(event) => {
-              const target = getEditableTarget(event.target);
+          >
+            <div
+              className="overflow-hidden bg-white"
+              onBlurCapture={(event) => {
+                const target = getEditableTarget(event.target);
 
-              if (target) {
+                if (!target) {
+                  return;
+                }
+
+                cancelScheduledCommit();
+                commitEditableTarget(target, true);
+                setCanFormatSelection(false);
+              }}
+              onClickCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (target) {
+                  event.preventDefault();
+                }
+              }}
+              onFocusCapture={rememberFormattingSelection}
+              onInputCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (target) {
+                  rememberFormattingSelection();
+                  scheduleEditableCommit(target);
+                }
+              }}
+              onKeyDownCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (
+                  target &&
+                  (event.ctrlKey || event.metaKey) &&
+                  ["b", "i", "u"].includes(event.key.toLowerCase())
+                ) {
+                  event.preventDefault();
+                  rememberFormattingSelection();
+                  applyInlineCommand(event.key.toLowerCase() === "b" ? "bold" : event.key.toLowerCase() === "i" ? "italic" : "underline");
+                }
+              }}
+              onKeyUpCapture={rememberFormattingSelection}
+              onMouseUpCapture={rememberFormattingSelection}
+              onPasteCapture={(event) => {
+                const target = getEditableTarget(event.target);
+
+                if (!target) {
+                  return;
+                }
+
                 event.preventDefault();
-              }
-            }}
-            onKeyDownCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target || event.key !== "Enter") {
-                return;
-              }
-
-              event.preventDefault();
-              commitEditableTarget(target);
-              target.blur();
-            }}
-            onPasteCapture={(event) => {
-              const target = getEditableTarget(event.target);
-
-              if (!target) {
-                return;
-              }
-
-              event.preventDefault();
-              insertPlainTextAtSelection(target, event.clipboardData.getData("text/plain"));
-            }}
-            ref={previewRef}
-            style={{ width: previewWidth }}
-          />
+                insertPlainTextAtSelection(target, event.clipboardData.getData("text/plain"));
+              }}
+              ref={previewRef}
+              style={{ width: previewWidth }}
+            />
+          </div>
         </div>
       </div>
     </div>

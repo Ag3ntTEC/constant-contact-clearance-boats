@@ -25,6 +25,9 @@ export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignS
     const assets = parsed.assets ?? {};
     const headerSections = assets.headerSections?.map((section) => ({
       ...section,
+      galleryImageUrls: Array.isArray(section.galleryImageUrls)
+        ? Array.from(new Set(section.galleryImageUrls.filter(Boolean)))
+        : [],
       blocks: Array.isArray(section.blocks)
         ? section.blocks
         : section.text?.trim()
@@ -38,6 +41,8 @@ export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignS
       assets: {
         ...defaults.assets,
         ...assets,
+        footerBlocks: Array.isArray(assets.footerBlocks) ? assets.footerBlocks : [],
+        textFormats: assets.textFormats ?? {},
         ...(headerSections ? { headerSections } : {}),
         featuredListing: {
           ...defaults.assets.featuredListing,

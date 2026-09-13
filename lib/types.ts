@@ -48,6 +48,8 @@ export type EmailAssets = {
   heroImageWidth: number;
   headerSections: HeaderSection[];
   featuredListing: FeaturedListingSettings;
+  footerBlocks: HeaderContentBlock[];
+  textFormats: Record<string, TextFormat>;
   footerImageUrl: string;
   footerImageDataUrl?: string;
   newInventoryUrl: string;
@@ -69,6 +71,7 @@ export type HeaderSection = {
   imageUrl: string;
   imageDataUrl?: string;
   imageWidth: number;
+  galleryImageUrls: string[];
   blocks: HeaderContentBlock[];
   text?: string;
 };
@@ -76,6 +79,12 @@ export type HeaderSection = {
 export type HeaderContentBlock =
   | { id: string; type: "text"; content: string }
   | { id: string; type: "button"; label: string; href: string };
+
+export type TextFormat = {
+  fontSize?: number;
+  textAlign?: "left" | "center" | "right";
+  color?: string;
+};
 
 export type FeaturedListingSettings = {
   enabled: boolean;

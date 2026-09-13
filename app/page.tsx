@@ -18,14 +18,9 @@ const workflowCards = [
     label: "Boats",
   },
   {
-    description: "Adjust images, copy, buttons, and layout.",
-    href: "/campaign/new/editor",
-    label: "Editor",
-  },
-  {
-    description: "Review the final email and create the draft.",
+    description: "Edit beside the live preview and create the draft.",
     href: "/campaign/new/preview",
-    label: "Preview",
+    label: "Editor & Preview",
   },
 ];
 
@@ -137,7 +132,7 @@ export default function Dashboard() {
                   {selectedCount} selected
                 </div>
               </div>
-              <div className="mt-6 grid gap-3 md:grid-cols-4">
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
                 {workflowCards.map((card, index) => (
                   <Link
                     className="group rounded-md border border-slate-200 bg-slate-50 p-4 hover:border-harbor hover:bg-white hover:shadow-[var(--tight-shadow)]"
