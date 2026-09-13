@@ -22,9 +22,9 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
     <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[var(--surface-shadow)]">
       <div className="border-b border-slate-200 bg-ink px-5 py-4 text-white">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Editor tools</p>
-        <h2 className="mt-1 text-xl font-bold">Header &amp; footer</h2>
+        <h2 className="mt-1 text-xl font-bold">Campaign content</h2>
         <p className="mt-1 text-sm text-slate-300">
-          Configure layout here, then click text in the preview to write and format it.
+          Configure the header and below-boats blocks, then format text in the preview.
         </p>
       </div>
 
@@ -90,7 +90,7 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
           </div>
         </EditorGroup>
 
-        <EditorGroup summary="Footer & below-boats content" open>
+        <EditorGroup summary="Below-boats content" open>
           <p className="text-sm text-slate-600">
             These blocks appear immediately below the selected boats, before the standard footer.
           </p>
@@ -101,20 +101,6 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
             removeBlock={draft.removeFooterBlock}
             updateBlock={draft.updateFooterBlock}
           />
-          <div className="border-t border-slate-200 pt-4">
-            <ImageUrlField
-              label="Footer team image"
-              onChange={(value) => draft.updateAsset("footerImageUrl", value)}
-              value={assets.footerImageUrl}
-            />
-            <div className="mt-4 space-y-3">
-              <RichTextEditor compact label="Footer heading" onChange={(value) => draft.updateAsset("footerHeading", value)} value={assets.footerHeading} />
-              <RichTextEditor compact label="Business name" onChange={(value) => draft.updateAsset("footerBusinessName", value)} value={assets.footerBusinessName} />
-              <RichTextEditor compact label="Footer subtext" onChange={(value) => draft.updateAsset("footerSubtext", value)} value={assets.footerSubtext} />
-              <RichTextEditor compact label="Contact button text" onChange={(value) => draft.updateAsset("contactButtonLabel", value)} value={assets.contactButtonLabel} />
-              <TextField label="Contact button URL" onChange={(value) => draft.updateAsset("contactUrl", value)} placeholder="https://..." value={assets.contactUrl} />
-            </div>
-          </div>
         </EditorGroup>
 
         <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
