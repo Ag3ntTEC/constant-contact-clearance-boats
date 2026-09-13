@@ -21,7 +21,7 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
   const { assets } = draft.settings;
 
   return (
-    <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[var(--surface-shadow)]">
+    <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[var(--surface-shadow)] lg:flex lg:h-full lg:flex-col">
       <div className="border-b border-slate-200 bg-ink px-5 py-4 text-white">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Editor tools</p>
         <h2 className="mt-1 text-xl font-bold">Campaign content</h2>
@@ -30,14 +30,8 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
         </p>
       </div>
 
-      <div className="max-h-[calc(100vh-235px)] space-y-4 overflow-y-auto p-4">
+      <div className="space-y-4 overflow-y-auto p-4 lg:min-h-0 lg:flex-1">
         <EditorGroup summary="Header" open>
-          <ImageUrlField
-            label="Top banner"
-            onChange={(value) => draft.updateAsset("topBannerImageUrl", value)}
-            value={assets.topBannerImageUrl}
-          />
-
           <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1">
             <ModeButton
               active={!assets.featuredListing.enabled}
@@ -82,14 +76,6 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
             </div>
           )}
 
-          <div className="border-t border-slate-200 pt-4">
-            <p className="mb-3 text-sm font-semibold text-ink">Header navigation links</p>
-            <div className="space-y-3">
-              <TextField label="New Inventory URL" onChange={(value) => draft.updateAsset("newInventoryUrl", value)} placeholder="https://..." value={assets.newInventoryUrl} />
-              <TextField label="Pre-Owned Inventory URL" onChange={(value) => draft.updateAsset("preOwnedInventoryUrl", value)} placeholder="https://..." value={assets.preOwnedInventoryUrl} />
-              <TextField label="Clearance Deals URL" onChange={(value) => draft.updateAsset("clearanceDealsUrl", value)} placeholder="https://..." value={assets.clearanceDealsUrl} />
-            </div>
-          </div>
         </EditorGroup>
 
         <EditorGroup summary="Below-boats content" open>
