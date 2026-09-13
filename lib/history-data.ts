@@ -3,6 +3,7 @@ import type {
   DraftHistoryEntry,
   DraftHistorySummary,
   HeaderImageHistoryEntry,
+  HeaderImageHistoryUsage,
 } from "./history-types";
 
 export function createDraftHistoryEntry({
@@ -39,28 +40,47 @@ export function createHeaderImageHistoryEntries(
   settings: CampaignSettings,
   metadata: { campaignId?: string; usedAt?: string } = {}
 ): HeaderImageHistoryEntry[] {
-  const uniqueImages = new Map<string, number>();
+  const uniqueImages = new Map<string, { imageWidth: number; usages: Set<HeaderImageHistoryUsage> }>();
 
   for (const section of settings.assets.headerSections) {
     const imageUrl = normalizeHistoryImageUrl(section.imageUrl);
-    if (imageUrl) uniqueImages.set(imageUrl, section.imageWidth);
+    if (imageUrl) addHistoryImageUsage(uniqueImages, imageUrl, section.imageWidth, "main");
 
     for (const galleryUrl of section.galleryImageUrls ?? []) {
       const normalizedGalleryUrl = normalizeHistoryImageUrl(galleryUrl);
-      if (normalizedGalleryUrl) uniqueImages.set(normalizedGalleryUrl, 520);
+      if (normalizedGalleryUrl) {
+        addHistoryImageUsage(uniqueImages, normalizedGalleryUrl, 520, "gallery");
+      }
     }
   }
 
   const usedAt = metadata.usedAt ?? new Date().toISOString();
 
-  return [...uniqueImages].map(([imageUrl, imageWidth]) => ({
+  return [...uniqueImages].map(([imageUrl, image]) => ({
     id: createHistoryId(),
     campaignName: settings.name.trim() || "Untitled campaign",
     campaignId: metadata.campaignId,
     imageUrl,
-    imageWidth,
+    imageWidth: image.imageWidth,
+    usages: [...image.usages],
     usedAt,
   }));
+}
+
+function addHistoryImageUsage(
+  images: Map<string, { imageWidth: number; usages: Set<HeaderImageHistoryUsage> }>,
+  imageUrl: string,
+  imageWidth: number,
+  usage: HeaderImageHistoryUsage
+) {
+  const existing = images.get(imageUrl);
+
+  if (existing) {
+    existing.usages.add(usage);
+    return;
+  }
+
+  images.set(imageUrl, { imageWidth, usages: new Set([usage]) });
 }
 
 export function summarizeDraft(entry: DraftHistoryEntry): DraftHistorySummary {
@@ -144,6 +164,9 @@ export function isHeaderImageHistoryEntry(value: unknown): value is HeaderImageH
     typeof entry.imageUrl === "string" &&
     typeof entry.imageWidth === "number" &&
     Number.isFinite(entry.imageWidth) &&
+    (entry.usages === undefined ||
+      (Array.isArray(entry.usages) &&
+        entry.usages.every((usage) => usage === "main" || usage === "gallery"))) &&
     typeof entry.usedAt === "string" &&
     Number.isFinite(Date.parse(entry.usedAt)) &&
     Boolean(normalizeHistoryImageUrl(entry.imageUrl))
