@@ -1,4 +1,5 @@
 import type { CampaignSettings, EmailAssets, FeaturedListingSettings } from "./types";
+import { normalizeHistoryImageUrl } from "./history-data";
 
 export const SETTINGS_STORAGE_KEY = "clearanceBoatCampaignSettings";
 
@@ -26,7 +27,7 @@ export function loadSavedCampaignSettings(defaults: CampaignSettings): CampaignS
     const headerSections = assets.headerSections?.map((section) => ({
       ...section,
       galleryImageUrls: Array.isArray(section.galleryImageUrls)
-        ? Array.from(new Set(section.galleryImageUrls.filter(Boolean)))
+        ? Array.from(new Set(section.galleryImageUrls.map(normalizeHistoryImageUrl).filter((url): url is string => Boolean(url))))
         : [],
       blocks: Array.isArray(section.blocks)
         ? section.blocks

@@ -8,14 +8,16 @@ import type {
   HeaderContentBlock,
   HeaderSection,
 } from "@/lib/types";
+import { normalizeHistoryImageUrl } from "@/lib/history-data";
 import { HeaderImageHistoryModal } from "./HeaderImageHistoryModal";
 import { RichTextEditor, TextField } from "./FormControls";
 import type { useCampaignDraft } from "./useCampaignDraft";
 
 type DraftControls = ReturnType<typeof useCampaignDraft>;
+type ImageHistoryTarget = { kind: "main" | "gallery"; sectionId: string };
 
 export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
-  const [historyTargetSectionId, setHistoryTargetSectionId] = useState<string | null>(null);
+  const [imageHistoryTarget, setImageHistoryTarget] = useState<ImageHistoryTarget | null>(null);
   const { assets } = draft.settings;
 
   return (
@@ -64,12 +66,12 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
               {assets.headerSections.map((section, index) => (
                 <DefaultHeaderSection
                   addBlock={draft.addHeaderBlock}
-                  allBoatImages={getAllBoatImages(draft.selectedBoats)}
                   canRemove={assets.headerSections.length > 1}
                   index={index}
                   key={section.id}
                   moveBlock={draft.moveHeaderBlock}
-                  onHistory={() => setHistoryTargetSectionId(section.id)}
+                  onGalleryHistory={() => setImageHistoryTarget({ kind: "gallery", sectionId: section.id })}
+                  onMainImageHistory={() => setImageHistoryTarget({ kind: "main", sectionId: section.id })}
                   removeBlock={draft.removeHeaderBlock}
                   removeSection={draft.removeHeaderSection}
                   section={section}
@@ -111,14 +113,23 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
         </div>
       </div>
 
-      {historyTargetSectionId ? (
+      {imageHistoryTarget ? (
         <HeaderImageHistoryModal
-          onClose={() => setHistoryTargetSectionId(null)}
+          onClose={() => setImageHistoryTarget(null)}
           onSelect={(entry) => {
-            draft.updateHeaderSection(historyTargetSectionId, "imageUrl", entry.imageUrl);
-            draft.updateHeaderSection(historyTargetSectionId, "imageDataUrl", "");
-            draft.updateHeaderSection(historyTargetSectionId, "imageWidth", entry.imageWidth);
-            setHistoryTargetSectionId(null);
+            if (imageHistoryTarget.kind === "gallery") {
+              const section = assets.headerSections.find((item) => item.id === imageHistoryTarget.sectionId);
+              draft.updateHeaderSection(
+                imageHistoryTarget.sectionId,
+                "galleryImageUrls",
+                dedupeImageUrls([...(section?.galleryImageUrls ?? []), entry.imageUrl]),
+              );
+            } else {
+              draft.updateHeaderSection(imageHistoryTarget.sectionId, "imageUrl", entry.imageUrl);
+              draft.updateHeaderSection(imageHistoryTarget.sectionId, "imageDataUrl", "");
+              draft.updateHeaderSection(imageHistoryTarget.sectionId, "imageWidth", entry.imageWidth);
+            }
+            setImageHistoryTarget(null);
           }}
         />
       ) : null}
@@ -158,15 +169,15 @@ function ImageUrlField({ label, onChange, value }: { label: string; onChange: (v
 }
 
 function DefaultHeaderSection({
-  addBlock, allBoatImages, canRemove, index, moveBlock, onHistory, removeBlock,
+  addBlock, canRemove, index, moveBlock, onGalleryHistory, onMainImageHistory, removeBlock,
   removeSection, section, updateBlock, updateSection,
 }: {
   addBlock: DraftControls["addHeaderBlock"];
-  allBoatImages: string[];
   canRemove: boolean;
   index: number;
   moveBlock: DraftControls["moveHeaderBlock"];
-  onHistory: () => void;
+  onGalleryHistory: () => void;
+  onMainImageHistory: () => void;
   removeBlock: DraftControls["removeHeaderBlock"];
   removeSection: DraftControls["removeHeaderSection"];
   section: HeaderSection;
@@ -178,7 +189,7 @@ function DefaultHeaderSection({
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-sm font-bold text-ink">Header section {index + 1}</p>
         <div className="flex gap-2">
-          <SmallButton onClick={onHistory}>History</SmallButton>
+          <SmallButton onClick={onMainImageHistory}>History</SmallButton>
           <button className="rounded border border-red-200 bg-white px-2 py-1 text-xs font-bold text-red-700 disabled:opacity-40" disabled={!canRemove} onClick={() => removeSection(section.id)} type="button">Remove</button>
         </div>
       </div>
@@ -188,9 +199,9 @@ function DefaultHeaderSection({
         <input className="mt-2 w-full accent-harbor" max={600} min={180} onChange={(event) => updateSection(section.id, "imageWidth", Number(event.target.value))} step={10} type="range" value={section.imageWidth} />
       </label>
       <GalleryPicker
-        imageOptions={allBoatImages}
         label="Optional header gallery"
-        onChange={(urls) => updateSection(section.id, "galleryImageUrls", urls)}
+        onChange={(urls) => updateSection(section.id, "galleryImageUrls", dedupeImageUrls(urls))}
+        onOpenHistory={onGalleryHistory}
         selected={section.galleryImageUrls}
       />
       <div className="mt-4 border-t border-slate-200 pt-3">
@@ -248,18 +259,29 @@ function FeaturedEditor({ listing, selectedBoats, update }: {
   );
 }
 
-function GalleryPicker({ imageOptions, label, onChange, selected }: { imageOptions: string[]; label: string; onChange: (urls: string[]) => void; selected: string[] }) {
+function GalleryPicker({ imageOptions = [], label, onChange, onOpenHistory, selected }: {
+  imageOptions?: string[];
+  label: string;
+  onChange: (urls: string[]) => void;
+  onOpenHistory?: () => void;
+  selected: string[];
+}) {
   const [customUrl, setCustomUrl] = useState("");
-  const options = Array.from(new Set([...selected, ...imageOptions]));
+  const options = dedupeImageUrls([...selected, ...imageOptions]);
 
   function toggle(url: string) {
-    onChange(selected.includes(url) ? selected.filter((item) => item !== url) : [...selected, url]);
+    const normalized = normalizeHistoryImageUrl(url);
+    if (!normalized) return;
+    const isSelected = selected.some((item) => normalizeHistoryImageUrl(item) === normalized);
+    onChange(isSelected
+      ? selected.filter((item) => normalizeHistoryImageUrl(item) !== normalized)
+      : dedupeImageUrls([...selected, normalized]));
   }
 
   function addCustom() {
-    const value = customUrl.trim();
-    if (!/^https?:\/\//i.test(value)) return;
-    if (!selected.includes(value)) onChange([...selected, value]);
+    const value = normalizeHistoryImageUrl(customUrl);
+    if (!value) return;
+    onChange(dedupeImageUrls([...selected, value]));
     setCustomUrl("");
   }
 
@@ -272,17 +294,18 @@ function GalleryPicker({ imageOptions, label, onChange, selected }: { imageOptio
       <div className="mt-3 flex gap-2">
         <input className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-xs" onChange={(event) => setCustomUrl(event.target.value)} placeholder="Add image URL" value={customUrl} />
         <SmallButton onClick={addCustom}>Add</SmallButton>
+        {onOpenHistory ? <SmallButton onClick={onOpenHistory}>Image history</SmallButton> : null}
       </div>
       {options.length ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {options.map((url, index) => (
-            <label className={`cursor-pointer rounded border p-1 ${selected.includes(url) ? "border-harbor ring-2 ring-harbor/20" : "border-slate-200"}`} key={url}>
-              <input checked={selected.includes(url)} className="sr-only" onChange={() => toggle(url)} type="checkbox" />
+            <label className={`cursor-pointer rounded border p-1 ${selected.some((item) => normalizeHistoryImageUrl(item) === url) ? "border-harbor ring-2 ring-harbor/20" : "border-slate-200"}`} key={url}>
+              <input checked={selected.some((item) => normalizeHistoryImageUrl(item) === url)} className="sr-only" onChange={() => toggle(url)} type="checkbox" />
               <img alt={`Gallery option ${index + 1}`} className="aspect-square w-full rounded object-cover" src={url} />
             </label>
           ))}
         </div>
-      ) : <p className="mt-3 text-xs text-slate-500">Add a URL or select a boat with pictures.</p>}
+      ) : <p className="mt-3 text-xs text-slate-500">{onOpenHistory ? "Add an image URL or choose one from image history." : "Select a featured boat with pictures."}</p>}
     </div>
   );
 }
@@ -317,8 +340,8 @@ function getBoatImages(boat: Boat | null): string[] {
   return boat ? Array.from(new Set([boat.primaryImageUrl, boat.imageUrl, ...(boat.pictures ?? [])].filter(Boolean))) as string[] : [];
 }
 
-function getAllBoatImages(boats: Boat[]): string[] {
-  return Array.from(new Set(boats.flatMap((boat) => getBoatImages(boat))));
+function dedupeImageUrls(urls: string[]): string[] {
+  return Array.from(new Set(urls.map(normalizeHistoryImageUrl).filter((url): url is string => Boolean(url))));
 }
 
 function buildSpecs(boat: Boat): string {
