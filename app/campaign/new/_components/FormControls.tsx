@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatRichText } from "@/lib/richText";
 
 export function TextField({
@@ -43,6 +43,7 @@ export function RichTextEditor({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const selectionRangeRef = useRef<Range | null>(null);
+  const [canBoldSelection, setCanBoldSelection] = useState(false);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -80,7 +81,34 @@ export function RichTextEditor({
 
     if (editor.contains(range.commonAncestorContainer)) {
       selectionRangeRef.current = range.cloneRange();
+      setCanBoldSelection(!range.collapsed);
+    } else {
+      setCanBoldSelection(false);
     }
+  }
+
+  function toggleBoldSelection() {
+    const editor = editorRef.current;
+    const savedRange = selectionRangeRef.current;
+    const selection = window.getSelection();
+
+    if (!editor || !savedRange || savedRange.collapsed || !selection) {
+      return;
+    }
+
+    if (
+      !editor.contains(savedRange.startContainer) ||
+      !editor.contains(savedRange.endContainer)
+    ) {
+      return;
+    }
+
+    editor.focus();
+    selection.removeAllRanges();
+    selection.addRange(savedRange);
+    document.execCommand("bold", false);
+    rememberSelection();
+    emitChange();
   }
 
   function insertPlainText(text: string) {
@@ -133,13 +161,29 @@ export function RichTextEditor({
 
   return (
     <div className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-slate-700">{label}</span>
+        <button
+          aria-label={`Bold highlighted text in ${label}`}
+          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!canBoldSelection}
+          onClick={toggleBoldSelection}
+          onMouseDown={(event) => event.preventDefault()}
+          title="Highlight text, then click Bold"
+          type="button"
+        >
+          Bold
+        </button>
+      </div>
       <div
         className={`mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm leading-6 text-ink shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4 ${
           compact ? "min-h-12" : "min-h-36"
         }`}
         contentEditable
-        onBlur={() => onChange(formatRichText(editorRef.current?.innerHTML ?? ""))}
+        onBlur={() => {
+          setCanBoldSelection(false);
+          onChange(formatRichText(editorRef.current?.innerHTML ?? ""));
+        }}
         onFocus={rememberSelection}
         onInput={() => {
           rememberSelection();
