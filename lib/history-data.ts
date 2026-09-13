@@ -44,6 +44,11 @@ export function createHeaderImageHistoryEntries(
   for (const section of settings.assets.headerSections) {
     const imageUrl = normalizeHistoryImageUrl(section.imageUrl);
     if (imageUrl) uniqueImages.set(imageUrl, section.imageWidth);
+
+    for (const galleryUrl of section.galleryImageUrls ?? []) {
+      const normalizedGalleryUrl = normalizeHistoryImageUrl(galleryUrl);
+      if (normalizedGalleryUrl) uniqueImages.set(normalizedGalleryUrl, 520);
+    }
   }
 
   const usedAt = metadata.usedAt ?? new Date().toISOString();
@@ -82,8 +87,13 @@ export function sanitizeCampaignSettings(settings: CampaignSettings): CampaignSe
     headerSections: settings.assets.headerSections.map((section) => ({
       ...section,
       imageDataUrl: undefined,
+      galleryImageUrls: [...(section.galleryImageUrls ?? [])],
       blocks: section.blocks.map((block) => ({ ...block })),
     })),
+    footerBlocks: settings.assets.footerBlocks.map((block) => ({ ...block })),
+    textFormats: Object.fromEntries(
+      Object.entries(settings.assets.textFormats).map(([field, format]) => [field, { ...format }])
+    ),
     featuredListing: {
       ...settings.assets.featuredListing,
       imageDataUrl: undefined,

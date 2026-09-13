@@ -17,6 +17,8 @@ export function formatRichText(value: string): string {
   const output: string[] = [];
   const tagPattern = /<[^>]+>/g;
   let boldDepth = 0;
+  let italicDepth = 0;
+  let underlineDepth = 0;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -30,6 +32,12 @@ export function formatRichText(value: string): string {
 
   if (boldDepth > 0) {
     output.push("</strong>");
+  }
+  if (italicDepth > 0) {
+    output.push("</em>");
+  }
+  if (underlineDepth > 0) {
+    output.push("</u>");
   }
 
   return collapseExtraBreaks(output.join(""));
@@ -61,6 +69,34 @@ export function formatRichText(value: string): string {
         if (boldDepth === 0) {
           output.push("</strong>");
         }
+      }
+      return;
+    }
+
+    if (/^<(?:i|em)\b/i.test(tag)) {
+      if (italicDepth === 0) output.push("<em>");
+      italicDepth += 1;
+      return;
+    }
+
+    if (/^<\/(?:i|em)>/i.test(tag)) {
+      if (italicDepth > 0) {
+        italicDepth -= 1;
+        if (italicDepth === 0) output.push("</em>");
+      }
+      return;
+    }
+
+    if (/^<u\b/i.test(tag)) {
+      if (underlineDepth === 0) output.push("<u>");
+      underlineDepth += 1;
+      return;
+    }
+
+    if (/^<\/u>/i.test(tag)) {
+      if (underlineDepth > 0) {
+        underlineDepth -= 1;
+        if (underlineDepth === 0) output.push("</u>");
       }
       return;
     }

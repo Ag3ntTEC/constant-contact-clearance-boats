@@ -8,6 +8,7 @@ import type {
   FeaturedListingSettings,
   HeaderContentBlock,
   HeaderSection,
+  TextFormat,
 } from "@/lib/types";
 import {
   clearSavedCampaignSettings,
@@ -31,6 +32,7 @@ export const createHeaderSection = (
   imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageWidth: 520,
+  galleryImageUrls: [],
   blocks: [],
   ...overrides,
 });
@@ -48,6 +50,7 @@ export const defaultEmailAssets: EmailAssets = {
       imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageWidth: 520,
+      galleryImageUrls: [],
       blocks: [],
     },
   ],
@@ -67,6 +70,8 @@ export const defaultEmailAssets: EmailAssets = {
     budgetBoatsUrl: "https://winnisquammarine.com/all/boats-for-sale/",
     scheduleViewingUrl: "https://winnisquammarine.com/schedule-an-appointment/",
   },
+  footerBlocks: [],
+  textFormats: {},
   footerImageUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   footerImageDataUrl: "https://lakewinnipesaukee.info/wp-content/uploads/2020/01/winni.jpg",
   newInventoryUrl: "https://winnisquammarine.com/all/boats-for-sale/",
@@ -147,12 +152,16 @@ function createHeaderBlockId() {
 }
 
 function migrateHeaderSection(section: HeaderSection): HeaderSection {
-  if (Array.isArray(section.blocks)) return section;
   return {
     ...section,
-    blocks: section.text?.trim()
-      ? [{ id: createHeaderBlockId(), type: "text", content: section.text }]
+    galleryImageUrls: Array.isArray(section.galleryImageUrls)
+      ? Array.from(new Set(section.galleryImageUrls.filter(Boolean)))
       : [],
+    blocks: Array.isArray(section.blocks)
+      ? section.blocks
+      : section.text?.trim()
+        ? [{ id: createHeaderBlockId(), type: "text", content: section.text }]
+        : [],
   };
 }
 
@@ -340,6 +349,68 @@ export function useCampaignDraft() {
     }));
   }
 
+  function addFooterBlock(type: HeaderContentBlock["type"]) {
+    const block: HeaderContentBlock = type === "text"
+      ? { id: createHeaderBlockId(), type: "text", content: "" }
+      : { id: createHeaderBlockId(), type: "button", label: "Button text", href: "" };
+
+    setSettings((current) => ({
+      ...current,
+      assets: { ...current.assets, footerBlocks: [...current.assets.footerBlocks, block] },
+    }));
+  }
+
+  function updateFooterBlock(blockId: string, updates: Partial<HeaderContentBlock>) {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        footerBlocks: current.assets.footerBlocks.map((block) =>
+          block.id === blockId ? { ...block, ...updates } as HeaderContentBlock : block
+        ),
+      },
+    }));
+  }
+
+  function removeFooterBlock(blockId: string) {
+    setSettings((current) => ({
+      ...current,
+      assets: {
+        ...current.assets,
+        footerBlocks: current.assets.footerBlocks.filter((block) => block.id !== blockId),
+      },
+    }));
+  }
+
+  function moveFooterBlock(blockId: string, direction: "up" | "down") {
+    setSettings((current) => {
+      const index = current.assets.footerBlocks.findIndex((block) => block.id === blockId);
+      const target = direction === "up" ? index - 1 : index + 1;
+
+      if (index < 0 || target < 0 || target >= current.assets.footerBlocks.length) return current;
+
+      const footerBlocks = [...current.assets.footerBlocks];
+      const [block] = footerBlocks.splice(index, 1);
+      footerBlocks.splice(target, 0, block);
+      return { ...current, assets: { ...current.assets, footerBlocks } };
+    });
+  }
+
+  function updateTextFormat(field: string, updates: Partial<TextFormat>) {
+    setSettings((current) => {
+      const nextFormat = { ...(current.assets.textFormats[field] ?? {}), ...updates };
+      const cleanFormat = Object.fromEntries(
+        Object.entries(nextFormat).filter(([, value]) => value !== undefined && value !== "")
+      ) as TextFormat;
+      const textFormats = { ...current.assets.textFormats };
+
+      if (Object.keys(cleanFormat).length) textFormats[field] = cleanFormat;
+      else delete textFormats[field];
+
+      return { ...current, assets: { ...current.assets, textFormats } };
+    });
+  }
+
   function toggleBoat(boat: Boat) {
     setSelectedBoats((current) => {
       if (current.some((selected) => selected.id === boat.id)) {
@@ -399,6 +470,7 @@ export function useCampaignDraft() {
   }
 
   return {
+    addFooterBlock,
     canCreateCampaign,
     clearSelectedBoats,
     addHeaderBlock,
@@ -408,8 +480,10 @@ export function useCampaignDraft() {
     resetSavedSettings,
     removeHeaderBlock,
     removeHeaderSection,
+    removeFooterBlock,
     removeBoat,
     moveHeaderBlock,
+    moveFooterBlock,
     reorderBoats,
     selectedBoatIds,
     selectedBoats,
@@ -421,8 +495,10 @@ export function useCampaignDraft() {
     toggleBoat,
     updateAsset,
     updateFeaturedListing,
+    updateFooterBlock,
     updateHeaderBlock,
     updateHeaderSection,
     updateSetting,
+    updateTextFormat,
   };
 }

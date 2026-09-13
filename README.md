@@ -8,8 +8,10 @@ Redesigned internal Next.js tool for building polished Constant Contact clearanc
 - Persistent campaign workflow navigation with step status badges
 - Consistent sticky bottom actions for moving through the campaign flow
 - More scannable boat selection with stronger row hierarchy, clearance badges, active preview, filter reset, empty states, and compact selected-order controls
-- Editor reorganized into focused tabs for Images, Header, Email Text, and Links
-- Preview page with a draft-readiness checklist, stable inline editing, and selection-based bold formatting
+- Combined Editor & Preview workspace with header/footer controls beside the live email
+- Stable inline editing with font size, bold, italic, underline, alignment, color, and clear-formatting controls
+- Optional image galleries for both default headers and featured listings
+- Reorderable text and button content blocks below the selected boats
 - Shared draft history with view, delete, and "edit as new project" actions
 - Live inventory reconciliation when a project is opened from draft history
 - Shared header image history across signed-in devices with automatic duplicate cleanup

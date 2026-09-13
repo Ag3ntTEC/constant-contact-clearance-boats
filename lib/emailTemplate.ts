@@ -1,4 +1,11 @@
-import type { Boat, CampaignSettings, FeaturedListingSettings, HeaderSection } from "./types";
+import type {
+  Boat,
+  CampaignSettings,
+  FeaturedListingSettings,
+  HeaderContentBlock,
+  HeaderSection,
+  TextFormat,
+} from "./types";
 import { formatRichText, hasRichTextContent, stripRichText } from "./richText";
 
 const previewPlaceholderImage =
@@ -18,12 +25,12 @@ export function generateClearanceBoatEmailHtml(
     : null;
   const boatRows = selectedBoats
     .filter((boat) => boat.id !== featuredBoat?.id)
-    .map((boat) => renderBoatBlock(boat, assets.priceLabelText))
+    .map((boat) => renderBoatBlock(boat, assets.priceLabelText, assets.textFormats))
     .join("");
   const boatListSection = boatRows
     ? `<tr>
               <td style="padding:16px 24px 6px 24px;">
-                <p data-edit-field="clearanceHeadingText" style="margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;">${formatRichText(clearanceHeading)}</p>
+                <p data-edit-field="clearanceHeadingText" style="${applyTextFormat("margin:0; color:#d71f2a; font-size:22px; line-height:28px; font-weight:bold; text-decoration:underline;", assets.textFormats.clearanceHeadingText)}">${formatRichText(clearanceHeading)}</p>
               </td>
             </tr>
             <tr>
@@ -42,6 +49,7 @@ export function generateClearanceBoatEmailHtml(
           imageUrl: assets.heroImageUrl,
           imageDataUrl: assets.heroImageDataUrl,
           imageWidth: assets.heroImageWidth,
+          galleryImageUrls: [],
           blocks: [],
         },
       ];
@@ -81,9 +89,10 @@ export function generateClearanceBoatEmailHtml(
             ${
               assets.featuredListing.enabled
                 ? renderFeaturedListing(settings, selectedBoats)
-                : headerSections.map(renderHeaderSection).join("")
+                : headerSections.map((section) => renderHeaderSection(section, assets.textFormats)).join("")
             }
             ${boatListSection}
+            ${renderContentBlocks(assets.footerBlocks, "footerBlocks", assets.textFormats)}
             ${renderButtonRow([
               { label: "New Inventory", href: assets.newInventoryUrl },
               { label: "Pre-Owned Inventory", href: assets.preOwnedInventoryUrl },
@@ -119,13 +128,17 @@ function renderTopBanner(imageUrl: string | undefined, width: number, title: str
   </tr>`;
 }
 
-function renderHeaderSection(section: HeaderSection): string {
+function renderHeaderSection(
+  section: HeaderSection,
+  textFormats: Record<string, TextFormat>
+): string {
   const src = normalizeImageSource(resolveImageSource(section.imageUrl, section.imageDataUrl));
   const imageWidth = clampImageWidth(section.imageWidth);
   const contentRows = (section.blocks ?? []).map((block) => {
     if (block.type === "text") {
       if (!stripRichText(block.content).trim()) return "";
-      return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><p data-edit-field="headerSections.${escapeAttribute(section.id)}.blocks.${escapeAttribute(block.id)}.content" style="margin:0; color:#111827; font-size:15px; line-height:22px;">${formatRichText(block.content)}</p></td></tr>`;
+      const field = `headerSections.${section.id}.blocks.${block.id}.content`;
+      return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><p data-edit-field="${escapeAttribute(field)}" style="${applyTextFormat("margin:0; color:#111827; font-size:15px; line-height:22px;", textFormats[field])}">${formatRichText(block.content)}</p></td></tr>`;
     }
     if (!block.label.trim() || !block.href.trim()) return "";
     return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><a href="${escapeAttribute(block.href)}" style="display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(block.label)}</a></td></tr>`;
@@ -138,18 +151,19 @@ function renderHeaderSection(section: HeaderSection): string {
         <p style="margin:0; color:#e5486d; font-size:34px; line-height:38px; font-weight:bold;">CLEARANCE DEALS</p>
         <p style="margin:10px 0 0 0; color:#ffffff; font-size:17px; line-height:22px; font-weight:bold;">DO NOT MISS THE BOAT!</p>
       </td>
-    </tr>${contentRows}`;
+    </tr>${renderImageGallery(section.galleryImageUrls ?? [], "Header gallery image")}${contentRows}`;
   }
 
   return `<tr>
     <td align="center" style="padding:0 0 6px 0;">
       <img src="${escapeAttribute(src)}" width="${imageWidth}" alt="Checkout our clearance deals" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
     </td>
-  </tr>${contentRows}`;
+  </tr>${renderImageGallery(section.galleryImageUrls ?? [], "Header gallery image")}${contentRows}`;
 }
 
 function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]): string {
   const featured = resolveFeaturedListing(settings.assets.featuredListing, selectedBoats, settings);
+  const textFormats = settings.assets.textFormats;
 
   if (!featured.enabled) {
     return "";
@@ -163,7 +177,7 @@ function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
         <tr>
           <td style="padding:0 0 0 0;">
-            <p data-edit-field="featuredListing.headline" style="margin:0; color:#000000; font-size:30px; line-height:34px; font-weight:bold;">${formatRichText(featured.headline)}</p>
+            <p data-edit-field="featuredListing.headline" style="${applyTextFormat("margin:0; color:#000000; font-size:30px; line-height:34px; font-weight:bold;", textFormats["featuredListing.headline"])}">${formatRichText(featured.headline)}</p>
           </td>
         </tr>
         <tr>
@@ -172,7 +186,7 @@ function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]
               <tr>
                 <td width="36" valign="middle" style="width:36px; color:#ff3bb3; font-size:22px; line-height:24px;">&#128150;</td>
                 <td valign="middle" style="color:#111827; font-size:14px; line-height:20px;">
-                  <span data-edit-field="featuredListing.label" style="outline:none;">${formatRichText(featured.label)}</span>
+                  <span data-edit-field="featuredListing.label" style="${applyTextFormat("display:block; outline:none;", textFormats["featuredListing.label"])}">${formatRichText(featured.label)}</span>
                 </td>
               </tr>
             </table>
@@ -183,12 +197,12 @@ function renderFeaturedListing(settings: CampaignSettings, selectedBoats: Boat[]
             <img src="${escapeAttribute(imageSrc)}" width="${imageWidth}" alt="${escapeAttribute(stripRichText(featured.title))}" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
           </td>
         </tr>
-        ${renderFeaturedGallery(featured.galleryImageUrls)}
+        ${renderImageGallery(featured.galleryImageUrls, "Featured boat gallery image")}
         <tr>
           <td style="padding:0 0 15px 0;">
-            <p data-edit-field="featuredListing.title" style="margin:0 0 4px 0; color:#000000; font-size:16px; line-height:21px; font-weight:bold;">${formatRichText(featured.title)}</p>
-            <p data-edit-field="featuredListing.body" style="margin:0; color:#000000; font-size:12px; line-height:16px;">${formatRichText(featured.body)}</p>
-            <p data-edit-field="featuredListing.specs" style="margin:3px 0 0 0; color:#000000; font-size:12px; line-height:16px; font-weight:bold;">${formatRichText(featured.specs)}</p>
+            <p data-edit-field="featuredListing.title" style="${applyTextFormat("margin:0 0 4px 0; color:#000000; font-size:16px; line-height:21px; font-weight:bold;", textFormats["featuredListing.title"])}">${formatRichText(featured.title)}</p>
+            <p data-edit-field="featuredListing.body" style="${applyTextFormat("margin:0; color:#000000; font-size:12px; line-height:16px;", textFormats["featuredListing.body"])}">${formatRichText(featured.body)}</p>
+            <p data-edit-field="featuredListing.specs" style="${applyTextFormat("margin:3px 0 0 0; color:#000000; font-size:12px; line-height:16px; font-weight:bold;", textFormats["featuredListing.specs"])}">${formatRichText(featured.specs)}</p>
           </td>
         </tr>
         <tr>
@@ -246,7 +260,7 @@ function resolveFeaturedListing(
   };
 }
 
-function renderFeaturedGallery(imageUrls: string[]): string {
+function renderImageGallery(imageUrls: string[], altText: string): string {
   if (!imageUrls.length) {
     return "";
   }
@@ -258,7 +272,7 @@ function renderFeaturedGallery(imageUrls: string[]): string {
       const imageUrl = escapeAttribute(url);
 
       return `<td width="33.333%" align="center" valign="top" style="width:33.333%; padding:0 5px 10px 5px;">
-        <img src="${imageUrl}" width="172" alt="Featured boat gallery image" style="display:block; width:172px; max-width:100%; height:auto; border:0; border-radius:8px;" />
+        <img src="${imageUrl}" width="172" alt="${escapeAttribute(altText)}" style="display:block; width:172px; max-width:100%; height:auto; border:0; border-radius:8px;" />
       </td>`;
     });
 
@@ -315,7 +329,11 @@ function renderButtonRow(
   </tr>`;
 }
 
-function renderBoatBlock(boat: Boat, priceLabelText: string): string {
+function renderBoatBlock(
+  boat: Boat,
+  priceLabelText: string,
+  textFormats: Record<string, TextFormat>
+): string {
   const imageUrl = escapeAttribute(
     boat.primaryImageUrl || boat.imageUrl || previewPlaceholderImage
   );
@@ -339,7 +357,7 @@ function renderBoatBlock(boat: Boat, priceLabelText: string): string {
           </td>
           <td valign="top" style="padding:12px 12px 12px 4px;">
             <p style="margin:0 0 7px 0; font-size:16px; line-height:21px; color:#111827; font-weight:bold;">${escapeHtml(displayTitle)}</p>
-            <p data-edit-field="priceLabelText" style="margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;">${formattedPriceLine}</p>
+            <p data-edit-field="priceLabelText" style="${applyTextFormat("margin:0 0 7px 0; font-size:13px; line-height:18px; color:#d71f2a; font-weight:bold;", textFormats.priceLabelText)}">${formattedPriceLine}</p>
             <p style="margin:0 0 8px 0; font-size:12px; line-height:17px; color:#111827; font-weight:bold;">${specs}</p>
             <a href="${detailUrl}" style="font-size:12px; line-height:16px; color:#006eb6; text-decoration:underline; font-weight:bold;">View All Details</a>
           </td>
@@ -367,15 +385,51 @@ function renderFooter(settings: CampaignSettings): string {
             }
           </td>
           <td align="center" valign="middle" style="padding:0; color:#111827;">
-            <p data-edit-field="footerHeading" style="margin:0 0 6px 0; font-size:13px; line-height:18px;">${formatRichText(assets.footerHeading)}</p>
-            <p data-edit-field="footerBusinessName" style="margin:0 0 4px 0; font-size:16px; line-height:21px; font-weight:bold;">${formatRichText(assets.footerBusinessName)}</p>
-            <p data-edit-field="footerSubtext" style="margin:0 0 10px 0; font-size:12px; line-height:17px;">${formatRichText(assets.footerSubtext)}</p>
-            <a data-edit-field="contactButtonLabel" href="${escapeAttribute(assets.contactUrl)}" style="display:inline-block; border:1px solid #111827; padding:5px 15px; color:#111827; font-size:11px; line-height:14px; text-decoration:none; background-color:#ffffff;">${formatRichText(assets.contactButtonLabel)}</a>
+            <p data-edit-field="footerHeading" style="${applyTextFormat("margin:0 0 6px 0; font-size:13px; line-height:18px;", assets.textFormats.footerHeading)}">${formatRichText(assets.footerHeading)}</p>
+            <p data-edit-field="footerBusinessName" style="${applyTextFormat("margin:0 0 4px 0; font-size:16px; line-height:21px; font-weight:bold;", assets.textFormats.footerBusinessName)}">${formatRichText(assets.footerBusinessName)}</p>
+            <p data-edit-field="footerSubtext" style="${applyTextFormat("margin:0 0 10px 0; font-size:12px; line-height:17px;", assets.textFormats.footerSubtext)}">${formatRichText(assets.footerSubtext)}</p>
+            <a data-edit-field="contactButtonLabel" href="${escapeAttribute(assets.contactUrl)}" style="${applyTextFormat("display:inline-block; border:1px solid #111827; padding:5px 15px; color:#111827; font-size:11px; line-height:14px; text-decoration:none; background-color:#ffffff;", assets.textFormats.contactButtonLabel)}">${formatRichText(assets.contactButtonLabel)}</a>
           </td>
         </tr>
       </table>
     </td>
   </tr>`;
+}
+
+function renderContentBlocks(
+  blocks: HeaderContentBlock[],
+  fieldPrefix: string,
+  textFormats: Record<string, TextFormat>
+): string {
+  return blocks.map((block) => {
+    if (block.type === "text") {
+      if (!stripRichText(block.content).trim()) return "";
+      const field = `${fieldPrefix}.${block.id}.content`;
+      return `<tr><td align="center" style="padding:10px 28px 16px 28px;"><p data-edit-field="${escapeAttribute(field)}" style="${applyTextFormat("margin:0; color:#111827; font-size:15px; line-height:22px;", textFormats[field])}">${formatRichText(block.content)}</p></td></tr>`;
+    }
+
+    if (!block.label.trim() || !block.href.trim()) return "";
+    return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><a href="${escapeAttribute(block.href)}" style="display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(block.label)}</a></td></tr>`;
+  }).join("");
+}
+
+function applyTextFormat(baseStyle: string, format?: TextFormat): string {
+  if (!format) return baseStyle;
+
+  const styles = [baseStyle];
+  const fontSize = Number(format.fontSize);
+
+  if (Number.isFinite(fontSize) && fontSize >= 8 && fontSize <= 72) {
+    styles.push(`font-size:${Math.round(fontSize)}px; line-height:${Math.round(fontSize * 1.35)}px;`);
+  }
+  if (format.textAlign && ["left", "center", "right"].includes(format.textAlign)) {
+    styles.push(`text-align:${format.textAlign};`);
+  }
+  if (format.color && /^#[0-9a-f]{6}$/i.test(format.color)) {
+    styles.push(`color:${format.color};`);
+  }
+
+  return styles.join(" ");
 }
 
 function buildSpecsHtml(boat: Boat): string {

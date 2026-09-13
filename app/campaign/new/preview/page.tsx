@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
 import { formatRichText, stripRichText } from "@/lib/richText";
 import { ActionFooter, StepShell } from "../_components/StepShell";
+import { CampaignContentEditor } from "../_components/CampaignContentEditor";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
-import type { EmailAssets, FeaturedListingSettings } from "@/lib/types";
+import type { EmailAssets, FeaturedListingSettings, TextFormat } from "@/lib/types";
 
 export default function CampaignPreviewPage() {
+  const draft = useCampaignDraft();
   const {
     canCreateCampaign,
     selectedBoats,
@@ -16,8 +18,10 @@ export default function CampaignPreviewPage() {
     sourceDraftId,
     updateAsset,
     updateFeaturedListing,
+    updateFooterBlock,
     updateHeaderBlock,
-  } = useCampaignDraft();
+    updateTextFormat,
+  } = draft;
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -107,6 +111,13 @@ export default function CampaignPreviewPage() {
       return;
     }
 
+    if (field.startsWith("footerBlocks.")) {
+      const [, blockId, blockField] = field.split(".");
+
+      if (blockId && blockField === "content") updateFooterBlock(blockId, { content: value });
+      return;
+    }
+
     if (field === "priceLabelText") {
       updateAsset("priceLabelText", extractPriceLabelEdit(value));
       return;
@@ -186,10 +197,10 @@ export default function CampaignPreviewPage() {
 
   return (
     <StepShell
-      description="Review the final table-based email before the future Constant Contact draft step."
+      description="Edit header and footer content beside the live email, then create the Constant Contact draft."
       footer={
         <ActionFooter
-          backHref="/campaign/new/editor"
+          backHref="/campaign/new/boats"
           nextDescription={validationMessage ?? "Ready to create a Constant Contact draft."}
         >
           <button
@@ -203,7 +214,7 @@ export default function CampaignPreviewPage() {
         </ActionFooter>
       }
       selectedCount={selectedBoats.length}
-      title="Preview email"
+      title="Editor & preview"
     >
       <div className="mb-5 flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-5 shadow-[var(--tight-shadow)] md:flex-row md:items-center md:justify-between">
         <div>
@@ -251,7 +262,9 @@ export default function CampaignPreviewPage() {
         </div>
       ) : null}
 
-      <section>
+      <section className="grid items-start gap-5 lg:grid-cols-2">
+        <CampaignContentEditor draft={draft} />
+        <div className="min-w-0 lg:sticky lg:top-5">
         <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-[var(--tight-shadow)]">
           <button
             className={`rounded-md px-4 py-2 text-sm font-semibold ${
@@ -278,12 +291,18 @@ export default function CampaignPreviewPage() {
         </div>
 
         {activeTab === "visual" ? (
-          <EmailVisualPreview html={emailHtml} onInlineTextEdit={handleInlineTextEdit} />
+          <EmailVisualPreview
+            html={emailHtml}
+            onInlineTextEdit={handleInlineTextEdit}
+            onInlineTextFormat={updateTextFormat}
+            textFormats={settings.assets.textFormats}
+          />
         ) : (
           <pre className="max-h-[720px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-4 text-xs leading-5 text-slate-100">
             {emailHtml}
           </pre>
         )}
+        </div>
       </section>
     </StepShell>
   );
@@ -436,9 +455,13 @@ function containsNonPublicImageReference(html: string) {
 function EmailVisualPreview({
   html,
   onInlineTextEdit,
+  onInlineTextFormat,
+  textFormats,
 }: {
   html: string;
   onInlineTextEdit: (field: string, value: string) => void;
+  onInlineTextFormat: (field: string, updates: Partial<TextFormat>) => void;
+  textFormats: Record<string, TextFormat>;
 }) {
   const previewWidth = 700;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -450,10 +473,12 @@ function EmailVisualPreview({
   const selectionTargetRef = useRef<HTMLElement | null>(null);
   const [height, setHeight] = useState(900);
   const [containerWidth, setContainerWidth] = useState(previewWidth);
-  const [canBoldSelection, setCanBoldSelection] = useState(false);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [canFormatSelection, setCanFormatSelection] = useState(false);
   const scale = Math.min(1, containerWidth / previewWidth);
   const wrapperHeight = Math.ceil(height * scale);
   const previewHtml = useMemo(() => makePreviewHtmlEditable(extractEmailBodyHtml(html)), [html]);
+  const activeFormat = activeField ? textFormats[activeField] ?? {} : {};
 
   useEffect(() => {
     const preview = previewRef.current;
@@ -475,7 +500,7 @@ function EmailVisualPreview({
       preview.innerHTML = previewHtml;
       appliedHtmlRef.current = previewHtml;
     }
-  }, [previewHtml]);
+  });
 
   useEffect(() => {
     return () => {
@@ -583,7 +608,7 @@ function EmailVisualPreview({
     const selection = window.getSelection();
 
     if (!preview || !selection?.rangeCount) {
-      setCanBoldSelection(false);
+      setCanFormatSelection(false);
       return;
     }
 
@@ -592,21 +617,21 @@ function EmailVisualPreview({
     const endTarget = getEditableNodeTarget(range.endContainer);
 
     if (
-      !range.collapsed &&
       startTarget &&
       startTarget === endTarget &&
       preview.contains(startTarget)
     ) {
       selectionRangeRef.current = range.cloneRange();
       selectionTargetRef.current = startTarget;
-      setCanBoldSelection(true);
+      setActiveField(startTarget.dataset.editField ?? null);
+      setCanFormatSelection(!range.collapsed);
       return;
     }
 
-    setCanBoldSelection(false);
+    setCanFormatSelection(false);
   }
 
-  function toggleBoldSelection() {
+  function applyInlineCommand(command: "bold" | "italic" | "underline") {
     const target = selectionTargetRef.current;
     const range = selectionRangeRef.current;
     const selection = window.getSelection();
@@ -619,7 +644,7 @@ function EmailVisualPreview({
       !target.contains(range.startContainer) ||
       !target.contains(range.endContainer)
     ) {
-      setCanBoldSelection(false);
+      setCanFormatSelection(false);
       return;
     }
 
@@ -627,18 +652,54 @@ function EmailVisualPreview({
     selection.removeAllRanges();
     selection.addRange(range);
 
-    if (!document.execCommand("bold", false)) {
-      const strong = document.createElement("strong");
+    if (!document.execCommand(command, false)) {
+      const tagName = command === "bold" ? "strong" : command === "italic" ? "em" : "u";
+      const wrapper = document.createElement(tagName);
       const selectedContent = range.extractContents();
-      strong.append(selectedContent);
-      range.insertNode(strong);
-      range.selectNodeContents(strong);
+      wrapper.append(selectedContent);
+      range.insertNode(wrapper);
+      range.selectNodeContents(wrapper);
       selection.removeAllRanges();
       selection.addRange(range);
     }
 
     rememberFormattingSelection();
     scheduleEditableCommit(target);
+  }
+
+  function applyBlockFormat(updates: Partial<TextFormat>) {
+    const target = selectionTargetRef.current;
+    const field = target?.dataset.editField ?? activeField;
+
+    if (!target?.isConnected || !field) return;
+
+    if (updates.fontSize !== undefined) {
+      target.style.fontSize = `${updates.fontSize}px`;
+      target.style.lineHeight = `${Math.round(updates.fontSize * 1.35)}px`;
+    }
+    if (updates.textAlign !== undefined) target.style.textAlign = updates.textAlign;
+    if (updates.color !== undefined) target.style.color = updates.color;
+    onInlineTextFormat(field, updates);
+  }
+
+  function clearFormatting() {
+    const target = selectionTargetRef.current;
+    const field = target?.dataset.editField ?? activeField;
+
+    if (!field) return;
+    const selection = window.getSelection();
+    const range = selectionRangeRef.current;
+
+    if (canFormatSelection && target && range && selection) {
+      target.focus();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.execCommand("removeFormat", false);
+      scheduleEditableCommit(target);
+    }
+    onInlineTextFormat(field, { color: undefined, fontSize: undefined, textAlign: undefined });
+    setActiveField(null);
+    target?.blur();
   }
 
   function insertPlainTextAtSelection(target: HTMLElement, text: string) {
@@ -687,24 +748,57 @@ function EmailVisualPreview({
 
   return (
     <div className="w-full overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-[var(--surface-shadow)]">
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-b border-slate-200 bg-white px-4 py-3">
         <div>
           <p className="text-sm font-semibold text-ink">Inline editing</p>
           <p className="mt-0.5 text-xs text-slate-500">
-            Click a dashed text box to edit. Highlight text to make it bold.
+            Click a dashed text box. Highlight text for bold, italic, or underline.
           </p>
         </div>
-        <button
-          className="inline-flex min-w-28 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-harbor hover:text-harbor disabled:cursor-not-allowed disabled:opacity-45"
-          disabled={!canBoldSelection}
-          onClick={toggleBoldSelection}
-          onMouseDown={(event) => event.preventDefault()}
-          title="Highlight text in the preview, then select Bold"
-          type="button"
-        >
-          <span aria-hidden="true" className="font-serif text-base font-black">B</span>
-          Bold
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Font size"
+            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            disabled={!activeField}
+            onChange={(event) => applyBlockFormat({ fontSize: Number(event.target.value) })}
+            value={activeFormat.fontSize ?? ""}
+          >
+            <option value="">Font size</option>
+            {[10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42].map((size) => <option key={size} value={size}>{size}px</option>)}
+          </select>
+          {(["bold", "italic", "underline"] as const).map((command) => (
+            <button
+              aria-label={command}
+              className={`h-8 min-w-8 rounded border border-slate-300 bg-white px-2 text-sm text-slate-700 hover:border-harbor hover:text-harbor disabled:opacity-40 ${command === "bold" ? "font-bold" : command === "italic" ? "italic" : "underline"}`}
+              disabled={!canFormatSelection}
+              key={command}
+              onClick={() => applyInlineCommand(command)}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              {command[0].toUpperCase()}
+            </button>
+          ))}
+          <span className="mx-1 h-6 w-px bg-slate-200" />
+          {(["left", "center", "right"] as const).map((alignment) => (
+            <button
+              aria-label={`Align ${alignment}`}
+              className={`h-8 rounded border px-2 text-xs font-semibold ${activeFormat.textAlign === alignment ? "border-harbor bg-mist text-harbor" : "border-slate-300 bg-white text-slate-600"}`}
+              disabled={!activeField}
+              key={alignment}
+              onClick={() => applyBlockFormat({ textAlign: alignment })}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              {alignment === "left" ? "≡←" : alignment === "center" ? "≡" : "→≡"}
+            </button>
+          ))}
+          <label className="flex h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600">
+            Color
+            <input aria-label="Text color" className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" disabled={!activeField} onChange={(event) => applyBlockFormat({ color: event.target.value })} type="color" value={activeFormat.color ?? "#111827"} />
+          </label>
+          <button className="h-8 rounded border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:opacity-40" disabled={!activeField} onClick={clearFormatting} onMouseDown={(event) => event.preventDefault()} type="button">Clear</button>
+        </div>
       </div>
       <div className="overflow-x-hidden px-4 py-8">
         <div
@@ -732,7 +826,7 @@ function EmailVisualPreview({
 
                 cancelScheduledCommit();
                 commitEditableTarget(target, true);
-                setCanBoldSelection(false);
+                setCanFormatSelection(false);
               }}
               onClickCapture={(event) => {
                 const target = getEditableTarget(event.target);
@@ -756,11 +850,11 @@ function EmailVisualPreview({
                 if (
                   target &&
                   (event.ctrlKey || event.metaKey) &&
-                  event.key.toLowerCase() === "b"
+                  ["b", "i", "u"].includes(event.key.toLowerCase())
                 ) {
                   event.preventDefault();
                   rememberFormattingSelection();
-                  toggleBoldSelection();
+                  applyInlineCommand(event.key.toLowerCase() === "b" ? "bold" : event.key.toLowerCase() === "i" ? "italic" : "underline");
                 }
               }}
               onKeyUpCapture={rememberFormattingSelection}
