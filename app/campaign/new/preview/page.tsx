@@ -262,7 +262,7 @@ export default function CampaignPreviewPage() {
         </div>
       ) : null}
 
-      <section className="grid items-start gap-5 lg:grid-cols-2">
+      <section className="grid items-start gap-5 lg:grid-cols-2 lg:items-stretch">
         <CampaignContentEditor draft={draft} />
         <div className="min-w-0 lg:sticky lg:top-5">
         <div className="mb-4 flex gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-[var(--tight-shadow)]">
