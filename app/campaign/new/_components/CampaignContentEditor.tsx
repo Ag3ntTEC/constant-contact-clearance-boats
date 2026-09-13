@@ -21,7 +21,7 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
   const { assets } = draft.settings;
 
   return (
-    <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[var(--surface-shadow)] lg:flex lg:h-full lg:flex-col">
+    <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[var(--surface-shadow)] lg:sticky lg:top-5 lg:flex lg:h-[calc(100vh-2.5rem)] lg:max-h-[calc(100vh-2.5rem)] lg:flex-col">
       <div className="border-b border-slate-200 bg-ink px-5 py-4 text-white">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Editor tools</p>
         <h2 className="mt-1 text-xl font-bold">Campaign content</h2>
@@ -101,6 +101,7 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
 
       {imageHistoryTarget ? (
         <HeaderImageHistoryModal
+          galleryOnly={imageHistoryTarget.kind === "gallery"}
           onClose={() => setImageHistoryTarget(null)}
           onSelect={(entry) => {
             if (imageHistoryTarget.kind === "gallery") {

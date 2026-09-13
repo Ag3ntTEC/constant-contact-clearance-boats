@@ -1,11 +1,14 @@
 import type { Boat, CampaignSettings } from "./types";
 
+export type HeaderImageHistoryUsage = "gallery" | "main";
+
 export type HeaderImageHistoryEntry = {
   id: string;
   campaignName: string;
   campaignId?: string;
   imageUrl: string;
   imageWidth: number;
+  usages?: HeaderImageHistoryUsage[];
   usedAt: string;
 };
 

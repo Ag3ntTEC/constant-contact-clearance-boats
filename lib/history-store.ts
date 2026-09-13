@@ -370,12 +370,16 @@ function compactHeaderImageEntries(
       ...entry,
       id: useStableIds ? stableImageHistoryId(imageUrl) : entry.id,
       imageUrl,
+      usages: Array.from(new Set(entry.usages ?? [])),
     };
     const existing = entriesByUrl.get(imageUrl);
 
-    if (!existing || Date.parse(normalizedEntry.usedAt) > Date.parse(existing.usedAt)) {
-      entriesByUrl.set(imageUrl, normalizedEntry);
-    }
+    const preferredEntry = !existing || Date.parse(normalizedEntry.usedAt) > Date.parse(existing.usedAt)
+      ? normalizedEntry
+      : existing;
+    const usages = Array.from(new Set([...(existing?.usages ?? []), ...normalizedEntry.usages]));
+
+    entriesByUrl.set(imageUrl, { ...preferredEntry, usages });
   }
 
   return [...entriesByUrl.values()].sort((left, right) =>
@@ -398,7 +402,9 @@ function hasSameImageEntries(
 
   return currentEntries.every(
     (entry, index) =>
-      entry.id === nextEntries[index]?.id && entry.imageUrl === nextEntries[index]?.imageUrl
+      entry.id === nextEntries[index]?.id &&
+      entry.imageUrl === nextEntries[index]?.imageUrl &&
+      JSON.stringify(entry.usages ?? []) === JSON.stringify(nextEntries[index]?.usages ?? [])
   );
 }
 

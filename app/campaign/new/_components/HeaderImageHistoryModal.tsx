@@ -7,26 +7,31 @@ import {
 } from "@/lib/header-image-history";
 
 type HeaderImageHistoryModalProps = {
+  galleryOnly?: boolean;
   onClose: () => void;
   onSelect: (entry: HeaderImageHistoryEntry) => void;
 };
 
-export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistoryModalProps) {
+export function HeaderImageHistoryModal({ galleryOnly = false, onClose, onSelect }: HeaderImageHistoryModalProps) {
   const [entries, setEntries] = useState<HeaderImageHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const availableEntries = useMemo(
+    () => galleryOnly ? entries.filter((entry) => entry.usages?.includes("gallery")) : entries,
+    [entries, galleryOnly]
+  );
   const filteredEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return entries;
-    return entries.filter(
+    if (!normalizedQuery) return availableEntries;
+    return availableEntries.filter(
       (entry) =>
         entry.campaignName.toLowerCase().includes(normalizedQuery) ||
         entry.imageUrl.toLowerCase().includes(normalizedQuery)
     );
-  }, [entries, query]);
+  }, [availableEntries, query]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -96,10 +101,12 @@ export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistor
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
           <div>
             <h2 className="text-xl font-bold text-ink" id="header-image-history-title">
-              Header image history
+              {galleryOnly ? "Gallery image history" : "Header image history"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Images recorded from successful drafts and shared across every signed-in device.
+              {galleryOnly
+                ? "Gallery images recorded from successful drafts and shared across every signed-in device."
+                : "Images recorded from successful drafts and shared across every signed-in device."}
             </p>
           </div>
           <button
@@ -186,12 +193,18 @@ export function HeaderImageHistoryModal({ onClose, onSelect }: HeaderImageHistor
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
               <p className="font-semibold text-slate-700">
-                {entries.length ? "No matching images" : "No header image history yet"}
+                {availableEntries.length
+                  ? "No matching images"
+                  : galleryOnly
+                    ? "No gallery image history yet"
+                    : "No header image history yet"}
               </p>
               <p className="mt-2 text-sm text-slate-500">
-                {entries.length
+                {availableEntries.length
                   ? "Try a different campaign name or URL."
-                  : "Images will appear here after you successfully create a Constant Contact draft."}
+                  : galleryOnly
+                    ? "Gallery images will appear here after you successfully create a Constant Contact draft."
+                    : "Images will appear here after you successfully create a Constant Contact draft."}
               </p>
             </div>
           )}
