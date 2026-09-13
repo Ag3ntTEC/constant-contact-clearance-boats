@@ -10,6 +10,7 @@ import type {
   HeaderSection,
   TextFormat,
 } from "@/lib/types";
+import { normalizeHistoryImageUrl } from "@/lib/history-data";
 import {
   clearSavedCampaignSettings,
   hasSavedCampaignSettings,
@@ -155,7 +156,7 @@ function migrateHeaderSection(section: HeaderSection): HeaderSection {
   return {
     ...section,
     galleryImageUrls: Array.isArray(section.galleryImageUrls)
-      ? Array.from(new Set(section.galleryImageUrls.filter(Boolean)))
+      ? Array.from(new Set(section.galleryImageUrls.map(normalizeHistoryImageUrl).filter((url): url is string => Boolean(url))))
       : [],
     blocks: Array.isArray(section.blocks)
       ? section.blocks
