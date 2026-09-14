@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClearanceBoatEmailHtml } from "@/lib/emailTemplate";
-import { formatRichText, stripRichText } from "@/lib/richText";
+import { formatRichText, preserveEditableWhitespace, stripRichText } from "@/lib/richText";
 import { ActionFooter, StepShell } from "../_components/StepShell";
 import { CampaignContentEditor } from "../_components/CampaignContentEditor";
 import { useCampaignDraft } from "../_components/useCampaignDraft";
@@ -20,6 +20,7 @@ export default function CampaignPreviewPage() {
     updateFeaturedListing,
     updateFooterBlock,
     updateHeaderBlock,
+    updateHeaderSection,
     updateTextFormat,
   } = draft;
   const [activeTab, setActiveTab] = useState<"visual" | "source">("visual");
@@ -94,8 +95,15 @@ export default function CampaignPreviewPage() {
     if (field.startsWith("headerSections.")) {
       const [, sectionId, group, blockId, blockField] = field.split(".");
 
-      if (sectionId && group === "blocks" && blockId && blockField === "content") {
-        updateHeaderBlock(sectionId, blockId, { content: value });
+      if (sectionId && group === "title") {
+        updateHeaderSection(sectionId, "title", value);
+      } else if (
+        sectionId &&
+        group === "blocks" &&
+        blockId &&
+        (blockField === "content" || blockField === "label")
+      ) {
+        updateHeaderBlock(sectionId, blockId, { [blockField]: value });
       }
 
       return;
@@ -114,7 +122,9 @@ export default function CampaignPreviewPage() {
     if (field.startsWith("footerBlocks.")) {
       const [, blockId, blockField] = field.split(".");
 
-      if (blockId && blockField === "content") updateFooterBlock(blockId, { content: value });
+      if (blockId && (blockField === "content" || blockField === "label")) {
+        updateFooterBlock(blockId, { [blockField]: value });
+      }
       return;
     }
 
@@ -425,7 +435,7 @@ function extractPriceLabelEdit(value: string): string {
   const colonIndex = value.indexOf(":");
 
   if (colonIndex >= 0) {
-    const labelHtml = value.slice(0, colonIndex).trim();
+    const labelHtml = value.slice(0, colonIndex);
 
     if (stripRichText(labelHtml).trim()) {
       return labelHtml;
@@ -434,7 +444,7 @@ function extractPriceLabelEdit(value: string): string {
 
   const plainValue = stripRichText(value);
 
-  return plainValue.split(":")[0]?.trim() || plainValue.trim();
+  return plainValue.split(":")[0] ?? plainValue;
 }
 
 function containsNonPublicImageReference(html: string) {
@@ -677,7 +687,14 @@ function EmailVisualPreview({
       target.style.fontSize = `${updates.fontSize}px`;
       target.style.lineHeight = `${Math.round(updates.fontSize * 1.35)}px`;
     }
-    if (updates.textAlign !== undefined) target.style.textAlign = updates.textAlign;
+    if (updates.textAlign !== undefined) {
+      target.style.textAlign = updates.textAlign;
+
+      if (target instanceof HTMLAnchorElement && target.parentElement instanceof HTMLTableCellElement) {
+        target.parentElement.align = updates.textAlign;
+        target.parentElement.style.textAlign = updates.textAlign;
+      }
+    }
     if (updates.color !== undefined) target.style.color = updates.color;
     onInlineTextFormat(field, updates);
   }
@@ -733,7 +750,7 @@ function EmailVisualPreview({
       }
 
       if (part) {
-        const textNode = document.createTextNode(part);
+        const textNode = document.createTextNode(preserveEditableWhitespace(part));
         range.insertNode(textNode);
         range.setStartAfter(textNode);
       }
@@ -847,6 +864,12 @@ function EmailVisualPreview({
               onKeyDownCapture={(event) => {
                 const target = getEditableTarget(event.target);
 
+                if (target && event.key === "Tab") {
+                  event.preventDefault();
+                  insertPlainTextAtSelection(target, "\t");
+                  return;
+                }
+
                 if (
                   target &&
                   (event.ctrlKey || event.metaKey) &&
@@ -882,7 +905,7 @@ function EmailVisualPreview({
 function makePreviewHtmlEditable(html: string): string {
   return html.replace(
     /data-edit-field="([^"]+)"([^>]*?)style="([^"]*)"/g,
-    'data-edit-field="$1" contenteditable="true" spellcheck="true" title="Click to edit"$2style="$3 outline:1px dashed rgba(0,110,182,0.35); outline-offset:2px; min-height:18px; cursor:text;"'
+    'data-edit-field="$1" contenteditable="true" spellcheck="true" title="Click to edit"$2style="$3 outline:1px dashed rgba(0,110,182,0.35); outline-offset:2px; min-height:18px; cursor:text; white-space:pre-wrap;"'
   );
 }
 

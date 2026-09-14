@@ -30,6 +30,7 @@ export const createHeaderSection = (
   overrides: Partial<HeaderSection> = {}
 ): HeaderSection => ({
   id: `header-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  title: "",
   imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
   imageWidth: 520,
@@ -48,6 +49,7 @@ export const defaultEmailAssets: EmailAssets = {
   headerSections: [
     {
       id: "default-hero",
+      title: "",
       imageUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageDataUrl: "https://i.imgur.com/WrMY9ND.jpeg",
       imageWidth: 520,
@@ -152,9 +154,18 @@ function createHeaderBlockId() {
   return `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function createContentBlock(type: HeaderContentBlock["type"]): HeaderContentBlock {
+  const id = createHeaderBlockId();
+
+  if (type === "text") return { id, type, content: "" };
+  if (type === "button") return { id, type, label: "Button text", href: "" };
+  return { id, type, imageUrl: "", imageWidth: 520, altText: "" };
+}
+
 function migrateHeaderSection(section: HeaderSection): HeaderSection {
   return {
     ...section,
+    title: section.title ?? "",
     galleryImageUrls: Array.isArray(section.galleryImageUrls)
       ? Array.from(new Set(section.galleryImageUrls.map(normalizeHistoryImageUrl).filter((url): url is string => Boolean(url))))
       : [],
@@ -287,9 +298,7 @@ export function useCampaignDraft() {
   }
 
   function addHeaderBlock(sectionId: string, type: HeaderContentBlock["type"]) {
-    const block: HeaderContentBlock = type === "text"
-      ? { id: createHeaderBlockId(), type: "text", content: "" }
-      : { id: createHeaderBlockId(), type: "button", label: "Button text", href: "" };
+    const block = createContentBlock(type);
     setSettings((current) => ({ ...current, assets: {
       ...current.assets,
       headerSections: current.assets.headerSections.map((section) =>
@@ -351,9 +360,7 @@ export function useCampaignDraft() {
   }
 
   function addFooterBlock(type: HeaderContentBlock["type"]) {
-    const block: HeaderContentBlock = type === "text"
-      ? { id: createHeaderBlockId(), type: "text", content: "" }
-      : { id: createHeaderBlockId(), type: "button", label: "Button text", href: "" };
+    const block = createContentBlock(type);
 
     setSettings((current) => ({
       ...current,

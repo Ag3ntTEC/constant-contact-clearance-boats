@@ -117,6 +117,12 @@ export function formatRichText(value: string): string {
   }
 }
 
+export function preserveEditableWhitespace(value: string): string {
+  return value
+    .replace(/\t/g, "\u00a0\u00a0\u00a0\u00a0")
+    .replace(/ {2,}/g, (spaces) => "\u00a0".repeat(spaces.length));
+}
+
 function appendBreakIfNeeded(output: string[]) {
   const current = output.join("");
 
@@ -133,6 +139,8 @@ function formatEscapedText(value: string): string {
   return value
     .replace(/\s\[\[bullet\]\]\s/g, " &bull; ")
     .replace(/\s\|\s/g, " &bull; ")
+    .replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;")
+    .replace(/ {2,}/g, (spaces) => "&nbsp;".repeat(spaces.length))
     .replace(/\r?\n/g, "<br />");
 }
 
