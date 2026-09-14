@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatRichText } from "@/lib/richText";
+import { formatRichText, preserveEditableWhitespace } from "@/lib/richText";
 
 export function TextField({
   label,
@@ -146,7 +146,7 @@ export function RichTextEditor({
       }
 
       if (part) {
-        const textNode = document.createTextNode(part);
+        const textNode = document.createTextNode(preserveEditableWhitespace(part));
         range.insertNode(textNode);
         range.setStartAfter(textNode);
       }
@@ -176,7 +176,7 @@ export function RichTextEditor({
         </button>
       </div>
       <div
-        className={`mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm leading-6 text-ink shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4 ${
+        className={`mt-2 w-full whitespace-pre-wrap rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm leading-6 text-ink shadow-sm outline-none ring-harbor/20 focus:border-harbor focus:ring-4 ${
           compact ? "min-h-12" : "min-h-36"
         }`}
         contentEditable
@@ -188,6 +188,12 @@ export function RichTextEditor({
         onInput={() => {
           rememberSelection();
           emitChange();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Tab") {
+            event.preventDefault();
+            insertPlainText("\t");
+          }
         }}
         onKeyUp={rememberSelection}
         onMouseUp={rememberSelection}

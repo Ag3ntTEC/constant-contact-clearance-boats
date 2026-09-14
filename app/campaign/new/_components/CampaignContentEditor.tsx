@@ -82,6 +82,12 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
           <p className="text-sm text-slate-600">
             These blocks appear immediately below the selected boats, before the standard footer.
           </p>
+          <RichTextEditor
+            compact
+            label="Boat price label"
+            onChange={(value) => draft.updateAsset("priceLabelText", value)}
+            value={assets.priceLabelText}
+          />
           <ContentBlocksEditor
             addBlock={draft.addFooterBlock}
             blocks={assets.footerBlocks}
@@ -101,7 +107,7 @@ export function CampaignContentEditor({ draft }: { draft: DraftControls }) {
 
       {imageHistoryTarget ? (
         <HeaderImageHistoryModal
-          galleryOnly={imageHistoryTarget.kind === "gallery"}
+          usage={imageHistoryTarget.kind}
           onClose={() => setImageHistoryTarget(null)}
           onSelect={(entry) => {
             if (imageHistoryTarget.kind === "gallery") {
@@ -176,10 +182,16 @@ function DefaultHeaderSection({
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-sm font-bold text-ink">Header section {index + 1}</p>
         <div className="flex gap-2">
-          <SmallButton onClick={onMainImageHistory}>History</SmallButton>
+          <SmallButton onClick={onMainImageHistory}>Header history</SmallButton>
           <button className="rounded border border-red-200 bg-white px-2 py-1 text-xs font-bold text-red-700 disabled:opacity-40" disabled={!canRemove} onClick={() => removeSection(section.id)} type="button">Remove</button>
         </div>
       </div>
+      <RichTextEditor
+        compact
+        label="Title above header image (optional)"
+        onChange={(value) => updateSection(section.id, "title", value)}
+        value={section.title ?? ""}
+      />
       <ImageUrlField label="Main" onChange={(value) => updateSection(section.id, "imageUrl", value)} value={section.imageUrl} />
       <label className="mt-3 block text-sm font-medium text-slate-700">
         Image width: {section.imageWidth}px
@@ -281,7 +293,7 @@ function GalleryPicker({ imageOptions = [], label, onChange, onOpenHistory, sele
       <div className="mt-3 flex gap-2">
         <input className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-xs" onChange={(event) => setCustomUrl(event.target.value)} placeholder="Add image URL" value={customUrl} />
         <SmallButton onClick={addCustom}>Add</SmallButton>
-        {onOpenHistory ? <SmallButton onClick={onOpenHistory}>Image history</SmallButton> : null}
+        {onOpenHistory ? <SmallButton onClick={onOpenHistory}>Gallery history</SmallButton> : null}
       </div>
       {options.length ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -306,7 +318,7 @@ function ContentBlocksEditor({ addBlock, blocks, moveBlock, removeBlock, updateB
 }) {
   return (
     <div>
-      <div className="flex flex-wrap gap-2"><SmallButton onClick={() => addBlock("text")}>+ Text</SmallButton><SmallButton onClick={() => addBlock("button")}>+ Button</SmallButton></div>
+      <div className="flex flex-wrap gap-2"><SmallButton onClick={() => addBlock("text")}>+ Text</SmallButton><SmallButton onClick={() => addBlock("button")}>+ Button</SmallButton><SmallButton onClick={() => addBlock("image")}>+ Image</SmallButton></div>
       <div className="mt-3 space-y-3">
         {blocks.map((block, index) => (
           <div className="rounded border border-slate-200 bg-slate-50 p-3" key={block.id}>
@@ -315,7 +327,23 @@ function ContentBlocksEditor({ addBlock, blocks, moveBlock, removeBlock, updateB
               <button disabled={index === blocks.length - 1} onClick={() => moveBlock(block.id, "down")} type="button">↓</button>
               <button className="text-red-700" onClick={() => removeBlock(block.id)} type="button">×</button>
             </div></div>
-            {block.type === "text" ? <RichTextEditor compact label="Text" onChange={(content) => updateBlock(block.id, { content })} value={block.content} /> : <div className="space-y-2"><TextField label="Button text" onChange={(label) => updateBlock(block.id, { label })} placeholder="Shop now" value={block.label} /><TextField label="Button URL" onChange={(href) => updateBlock(block.id, { href })} placeholder="https://..." value={block.href} /></div>}
+            {block.type === "text" ? (
+              <RichTextEditor compact label="Text" onChange={(content) => updateBlock(block.id, { content })} value={block.content} />
+            ) : block.type === "button" ? (
+              <div className="space-y-2">
+                <RichTextEditor compact label="Button text" onChange={(label) => updateBlock(block.id, { label })} value={block.label} />
+                <TextField label="Button URL" onChange={(href) => updateBlock(block.id, { href })} placeholder="https://..." value={block.href} />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <ImageUrlField label="Content" onChange={(imageUrl) => updateBlock(block.id, { imageUrl })} value={block.imageUrl} />
+                <TextField label="Image description" onChange={(altText) => updateBlock(block.id, { altText })} placeholder="Describe the image" value={block.altText} />
+                <label className="block text-sm font-medium text-slate-700">
+                  Image width: {block.imageWidth}px
+                  <input className="mt-2 w-full accent-harbor" max={600} min={180} onChange={(event) => updateBlock(block.id, { imageWidth: Number(event.target.value) })} step={10} type="range" value={block.imageWidth} />
+                </label>
+              </div>
+            )}
           </div>
         ))}
       </div>

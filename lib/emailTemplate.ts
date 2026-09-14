@@ -134,18 +134,25 @@ function renderHeaderSection(
 ): string {
   const src = normalizeImageSource(resolveImageSource(section.imageUrl, section.imageDataUrl));
   const imageWidth = clampImageWidth(section.imageWidth);
+  const titleField = `headerSections.${section.id}.title`;
+  const titleRow = hasRichTextContent(section.title ?? "")
+    ? `<tr><td align="center" style="padding:12px 28px 14px 28px;"><p data-edit-field="${escapeAttribute(titleField)}" style="${applyTextFormat("margin:0; color:#111827; font-size:24px; line-height:30px; font-weight:bold; text-align:center;", textFormats[titleField])}">${formatRichText(section.title ?? "")}</p></td></tr>`
+    : "";
   const contentRows = (section.blocks ?? []).map((block) => {
     if (block.type === "text") {
       if (!stripRichText(block.content).trim()) return "";
       const field = `headerSections.${section.id}.blocks.${block.id}.content`;
       return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><p data-edit-field="${escapeAttribute(field)}" style="${applyTextFormat("margin:0; color:#111827; font-size:15px; line-height:22px;", textFormats[field])}">${formatRichText(block.content)}</p></td></tr>`;
     }
-    if (!block.label.trim() || !block.href.trim()) return "";
-    return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><a href="${escapeAttribute(block.href)}" style="display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(block.label)}</a></td></tr>`;
+    if (block.type === "image") return renderContentImageBlock(block);
+    if (!hasRichTextContent(block.label) || !block.href.trim()) return "";
+    const field = `headerSections.${section.id}.blocks.${block.id}.label`;
+    const alignment = resolveTextAlignment(textFormats[field]);
+    return `<tr><td align="${alignment}" style="padding:8px 28px 16px 28px; text-align:${alignment};"><a data-edit-field="${escapeAttribute(field)}" href="${escapeAttribute(block.href)}" style="${applyTextFormat("display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;", textFormats[field])}">${formatRichText(block.label)}</a></td></tr>`;
   }).join("");
 
   if (!src) {
-    return `<tr>
+    return `${titleRow}<tr>
       <td align="center" style="background-color:#dcecff; padding:34px 24px 40px 24px; text-align:center;">
         <p style="margin:0; color:#e5486d; font-size:34px; line-height:38px; font-weight:bold;">CHECKOUT OUR</p>
         <p style="margin:0; color:#e5486d; font-size:34px; line-height:38px; font-weight:bold;">CLEARANCE DEALS</p>
@@ -154,7 +161,7 @@ function renderHeaderSection(
     </tr>${renderImageGallery(section.galleryImageUrls ?? [], "Header gallery image")}${contentRows}`;
   }
 
-  return `<tr>
+  return `${titleRow}<tr>
     <td align="center" style="padding:0 0 6px 0;">
       <img src="${escapeAttribute(src)}" width="${imageWidth}" alt="Checkout our clearance deals" style="display:block; width:${imageWidth}px; max-width:100%; height:auto; border:0; border-radius:14px;" />
     </td>
@@ -408,9 +415,28 @@ function renderContentBlocks(
       return `<tr><td align="center" style="padding:10px 28px 16px 28px;"><p data-edit-field="${escapeAttribute(field)}" style="${applyTextFormat("margin:0; color:#111827; font-size:15px; line-height:22px;", textFormats[field])}">${formatRichText(block.content)}</p></td></tr>`;
     }
 
-    if (!block.label.trim() || !block.href.trim()) return "";
-    return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><a href="${escapeAttribute(block.href)}" style="display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;">${escapeHtml(block.label)}</a></td></tr>`;
+    if (block.type === "image") return renderContentImageBlock(block);
+    if (!hasRichTextContent(block.label) || !block.href.trim()) return "";
+    const field = `${fieldPrefix}.${block.id}.label`;
+    const alignment = resolveTextAlignment(textFormats[field]);
+    return `<tr><td align="${alignment}" style="padding:8px 28px 16px 28px; text-align:${alignment};"><a data-edit-field="${escapeAttribute(field)}" href="${escapeAttribute(block.href)}" style="${applyTextFormat("display:inline-block; border:1px solid #111827; border-radius:2px; padding:9px 18px; color:#111827; font-size:12px; line-height:14px; text-decoration:none; background-color:#ffffff;", textFormats[field])}">${formatRichText(block.label)}</a></td></tr>`;
   }).join("");
+}
+
+function renderContentImageBlock(
+  block: Extract<HeaderContentBlock, { type: "image" }>
+): string {
+  const src = normalizeImageSource(block.imageUrl);
+  if (!src) return "";
+
+  const width = clampImageWidth(block.imageWidth);
+  return `<tr><td align="center" style="padding:8px 28px 16px 28px;"><img src="${escapeAttribute(src)}" width="${width}" alt="${escapeAttribute(block.altText || "Campaign image")}" style="display:block; width:${width}px; max-width:100%; height:auto; border:0; border-radius:8px;" /></td></tr>`;
+}
+
+function resolveTextAlignment(format?: TextFormat): "left" | "center" | "right" {
+  return format?.textAlign && ["left", "center", "right"].includes(format.textAlign)
+    ? format.textAlign
+    : "center";
 }
 
 function applyTextFormat(baseStyle: string, format?: TextFormat): string {

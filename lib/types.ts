@@ -68,6 +68,7 @@ export type EmailAssets = {
 
 export type HeaderSection = {
   id: string;
+  title?: string;
   imageUrl: string;
   imageDataUrl?: string;
   imageWidth: number;
@@ -78,7 +79,8 @@ export type HeaderSection = {
 
 export type HeaderContentBlock =
   | { id: string; type: "text"; content: string }
-  | { id: string; type: "button"; label: string; href: string };
+  | { id: string; type: "button"; label: string; href: string }
+  | { id: string; type: "image"; imageUrl: string; imageWidth: number; altText: string };
 
 export type TextFormat = {
   fontSize?: number;
