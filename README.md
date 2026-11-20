@@ -52,13 +52,14 @@ CONSTANT_CONTACT_TOKEN_URL=https://authz.constantcontact.com/oauth2/default/v1/t
 CONSTANT_CONTACT_API_BASE_URL=https://api.cc.email/v3
 CONSTANT_CONTACT_REFRESH_TOKEN=
 BOAT_FEED_URL=https://motomarinedigital.com/feeds/winnisquammarine-feed/WinboatsWebXMLAllRevA.xml
-BOAT_IMAGE_BASE_URL=https://winnisquammarine.com/wp-content/uploads
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 HISTORY_STORE_NAMESPACE=clearance-campaign-studio:v1
 ```
 
 Keep these values server-side only. Do not expose Constant Contact credentials, login passwords, or cookie secrets to frontend code.
+
+The app resolves relative boat photo filenames through the Winnisquam Marine WordPress media API. Full image URLs from the feed are used as supplied.
 
 ### Shared history storage
 

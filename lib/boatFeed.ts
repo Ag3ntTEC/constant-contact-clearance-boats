@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveBoatImages } from "./boatImages";
 import type { Boat } from "./types";
 import {
   formatBoatDisplayTitle,
@@ -13,7 +14,6 @@ export const BOAT_FEED_URL =
   process.env.BOAT_FEED_URL ??
   "https://motomarinedigital.com/feeds/winnisquammarine-feed/WinboatsWebXMLAllRevA.xml";
 
-const DEFAULT_IMAGE_HOST = "https://winnisquammarine.com/wp-content/uploads";
 const FALLBACK_FEED_PATH = join(process.cwd(), "lib", "boat-feed-fallback.xml");
 
 type XmlNode = {
@@ -62,6 +62,7 @@ export async function fetchBoats(): Promise<{
 
     return {
       ...parsed,
+      boats: await resolveBoatImages(parsed.boats),
       fetchedAt: new Date().toISOString(),
       source: "live",
     };
@@ -79,6 +80,7 @@ async function loadFallbackBoats(originalError: unknown) {
 
     return {
       ...parsed,
+      boats: await resolveBoatImages(parsed.boats),
       fetchedAt: new Date().toISOString(),
       source: "fallback" as const,
       warning: `Using cached boat feed because the live feed failed: ${message}`,
@@ -378,8 +380,6 @@ function normalizeBoat(fields: FieldMap, index: number): Boat | null {
     formattedLoa: formatLoa(rawLoa),
     formattedBeam: formatBeam(rawBeam),
     pictures,
-    imageUrl: pictures[0],
-    primaryImageUrl: pictures[0],
     description: pick(fields, ["description", "comments", "remarks", "shortdescription"]),
     rawFields: compactFields(fields),
   };
@@ -436,37 +436,17 @@ function pickUrl(fields: FieldMap, names: string[]): string | undefined {
 }
 
 function collectPictures(fields: FieldMap): string[] {
+  const feedPictures = fields.nodepicturespicture;
+  if (feedPictures) return [...new Set(feedPictures)];
+
   const values = Object.entries(fields)
     .filter(([key]) => /photo|picture|image|media|pic/.test(key))
     .flatMap(([, fieldValues]) => fieldValues)
     .flatMap((value) => value.split(/[,\n|;]/g))
     .map((value) => value.trim())
-    .filter((value) => /\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(value))
-    .map(resolveImageUrl);
+    .filter((value) => /\.(jpe?g|png|webp|gif)([?#].*)?$/i.test(value));
 
   return Array.from(new Set(values));
-}
-
-function resolveImageUrl(value: string): string {
-  if (/^https?:\/\//i.test(value)) {
-    return value;
-  }
-
-  const imageBaseUrl = getCurrentImageBaseUrl();
-  const filename = value.split(/[\\/]/).filter(Boolean).pop() ?? value;
-
-  return `${imageBaseUrl}/${encodeURIComponent(filename)}`;
-}
-
-function getCurrentImageBaseUrl(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const configuredBaseUrl = (process.env.BOAT_IMAGE_BASE_URL ?? DEFAULT_IMAGE_HOST)
-    .replace(/\/+$/, "")
-    .replace(/\/\d{4}\/(?:0[1-9]|1[0-2])$/, "");
-
-  return `${configuredBaseUrl}/${year}/${month}`;
 }
 
 function compactFields(fields: FieldMap): Record<string, string> {
